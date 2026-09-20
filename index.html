@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UNITWIN GRID V2 — Adaptive Digital Twin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./src/style.css" />
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <!-- Three.js Import Map -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.156.1/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.156.1/examples/jsm/",
+      "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.156.1/examples/jsm/"
+    }
+  }
+  </script>
+
+  <!-- Loading watchdog -->
+  <script>
+    setTimeout(function() {
+      var ls = document.getElementById('loadingScreen');
+      if (ls && ls.style.display !== 'none') {
+        ls.style.opacity = '0';
+        ls.style.pointerEvents = 'none';
+        setTimeout(function() { ls.style.display = 'none'; }, 500);
+      }
+    }, 4000);
+  </script>
+</head>
+<body>
+
+<!-- ============================================================
+     LOADING SCREEN
+============================================================ -->
+<div id="loadingScreen">
+  <div class="loading-logo">
+    <div class="project-name">UNITWIN GRID</div>
+    <div class="project-sub">ADAPTIVE DIGITAL TWIN · V2.0</div>
+  </div>
+  <div class="loading-bar-wrap"><div class="loading-bar-fill" id="loadingBarFill"></div></div>
+  <div class="loading-steps">
+    <div class="load-step" id="loadStep1"><div class="load-check"></div>Initializing 3D visualization engine</div>
+    <div class="load-step" id="loadStep2"><div class="load-check"></div>Building transformer digital twin</div>
+    <div class="load-step" id="loadStep3"><div class="load-check"></div>Connecting to Firebase Realtime Database</div>
+    <div class="load-step" id="loadStep4"><div class="load-check"></div>Activating sensor data stream</div>
+    <div class="load-step" id="loadStep5"><div class="load-check"></div>Synchronizing digital twin</div>
+  </div>
+</div>
+
+<!-- ============================================================
+     APP SHELL
+============================================================ -->
+<div id="app">
+
+  <!-- ── Header ──────────────────────────────────────────────── -->
+  <header id="header">
+    <div class="header-logo">
+      <div class="header-logo-icon">⚡</div>
+      <div>
+        <div class="header-name">UNITWIN GRID</div>
+        <div class="header-sub">Adaptive Digital Twin · Transformer Monitoring</div>
+      </div>
+    </div>
+
+    <div class="header-divider"></div>
+
+    <div id="modeIndicator"><span class="mode-sim">◉ SIMULATION</span></div>
+
+    <div class="header-divider"></div>
+
+    <div class="header-conn">
+      <div class="conn-item"><span class="conn-dot conn-off" id="connESP32"></span>ESP32</div>
+      <div class="conn-item"><span class="conn-dot conn-off" id="connDatabase"></span>FIREBASE</div>
+      <div class="conn-item"><span class="conn-dot conn-on" id="connSensor"></span>SENSORS</div>
+      <div class="conn-item"><span class="conn-dot conn-on" id="connTwin"></span>TWIN SYNC</div>
+      <div class="conn-item" style="color:var(--text-dim);font-size:0.6rem;">UPD: <span id="lastUpdate" style="font-family:var(--font-mono);">—</span></div>
+    </div>
+
+    <div style="margin-left:auto;display:flex;gap:0.5rem;align-items:center;">
+      <button class="btn btn-demo" id="demoStartBtn">▶ DEMO</button>
+      <button class="btn btn-sm btn-danger" id="resetSystemBtn">↺ RESET</button>
+    </div>
+  </header>
+
+  <!-- ── Sidebar ─────────────────────────────────────────────── -->
+  <nav id="sidebar">
+    <div class="nav-section">COMMAND CENTER</div>
+    <a class="nav-link nav-active" data-page="dashboard">
+      <span class="nav-icon">⬛</span><span>Dashboard</span>
+    </a>
+
+    <div class="nav-section">DIGITAL TWIN</div>
+    <a class="nav-link" data-page="twin">
+      <span class="nav-icon">◈</span><span>3D Twin View</span>
+    </a>
+
+    <div class="nav-section">MONITOR</div>
+    <a class="nav-link" data-page="monitoring">
+      <span class="nav-icon">◉</span><span>Live Sensors</span>
+    </a>
+    <a class="nav-link" data-page="energyflow">
+      <span class="nav-icon">⟿</span><span>Energy Flow</span>
+    </a>
+    <a class="nav-link" data-page="devicehealth">
+      <span class="nav-icon">⬡</span><span>Device Health</span>
+    </a>
+
+    <div class="nav-section">ANALYSIS</div>
+    <a class="nav-link" data-page="analytics">
+      <span class="nav-icon">▧</span><span>Analytics</span>
+    </a>
+    <a class="nav-link" data-page="intelligence">
+      <span class="nav-icon">◎</span><span>Intelligence</span>
+    </a>
+
+    <div class="nav-section">SIMULATOR</div>
+    <a class="nav-link" data-page="scenarios">
+      <span class="nav-icon">⧉</span><span>Scenarios</span>
+    </a>
+    <a class="nav-link" data-page="whatif">
+      <span class="nav-icon">⟡</span><span>What-If</span>
+    </a>
+
+    <div class="nav-section">SYSTEM</div>
+    <a class="nav-link" data-page="alerts">
+      <span class="nav-icon">⚠</span>
+      <span>Alerts <span id="alertBadge" style="color:var(--accent-red);font-family:var(--font-mono);font-size:0.65rem;"></span></span>
+    </a>
+    <a class="nav-link" data-page="architecture">
+      <span class="nav-icon">◫</span><span>Architecture</span>
+    </a>
+    <a class="nav-link" data-page="hardware">
+      <span class="nav-icon">⎔</span><span>Hardware</span>
+    </a>
+    <a class="nav-link" data-page="reports">
+      <span class="nav-icon">▤</span><span>Reports</span>
+    </a>
+    <a class="nav-link" data-page="settings">
+      <span class="nav-icon">⚙</span><span>Settings</span>
+    </a>
+  </nav>
+
+  <!-- ── Main Content ─────────────────────────────────────────── -->
+  <main id="main">
+
+    <!-- ══════════════════ DASHBOARD ══════════════════ -->
+    <section class="page dashboard-page active" id="page-dashboard">
+
+      <!-- LEFT PANEL -->
+      <div class="panel-left">
+        <!-- Transformer Telemetry -->
+        <div class="panel-section">
+          <div class="section-title">Transformer</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem;">
+            <span class="state-badge state-normal" id="txState">NORMAL</span>
+            <span class="src-tag src-simulation" id="txSource">SIMULATION</span>
+          </div>
+          <div class="reading-row"><span class="reading-label">Voltage</span><span class="reading-value" id="txVoltage">12.10 V</span></div>
+          <div class="reading-row"><span class="reading-label">Current</span><span class="reading-value" id="txCurrent">0.350 A</span></div>
+          <div class="reading-row"><span class="reading-label">Power</span><span class="reading-value highlight" id="txPower">4.24 W</span></div>
+          <div class="reading-row"><span class="reading-label">Temperature</span><span class="reading-value" id="txTemp">32.4 °C</span></div>
+          <div class="reading-row"><span class="reading-label">Vibration</span><span class="reading-value" id="txVibration">0.120 g</span></div>
+          <div class="reading-row"><span class="reading-label">Freq / PF</span>
+            <span class="reading-value" style="font-size:0.72rem;"><span id="txFreq">50.0 Hz</span> / <span id="txPF">0.95</span></span>
+          </div>
+        </div>
+
+        <!-- Solar -->
+        <div class="panel-section">
+          <div class="section-title">Solar Generation · INA219</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
+            <span class="status-pill pill-active" id="solarStatus">ACTIVE</span>
+            <span style="font-family:var(--font-mono);font-size:0.72rem;color:var(--solar-color);" id="solarPower">1.04 W</span>
+          </div>
+          <div class="progress-bar-wrap"><div class="progress-bar-fill" id="solarBar" style="width:69%;background:var(--solar-color);"></div></div>
+          <div class="reading-row" style="margin-top:0.4rem;"><span class="reading-label">Voltage</span><span class="reading-value" id="solarVoltage">5.80 V</span></div>
+          <div class="reading-row"><span class="reading-label">Current</span><span class="reading-value" id="solarCurrent">0.180 A</span></div>
+        </div>
+
+        <!-- EV -->
+        <div class="panel-section">
+          <div class="section-title">EV Load Emulator</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.4rem;">
+            <span class="status-pill pill-idle" id="evStatusBadge">IDLE</span>
+            <span style="font-family:var(--font-mono);font-size:0.65rem;color:var(--ev-color);" id="evMode">EMULATOR</span>
+          </div>
+          <div class="reading-row"><span class="reading-label">Load Power</span><span class="reading-value" style="color:var(--ev-color);" id="evPower">0.00 W</span></div>
+          <div style="margin-top:0.5rem;">
+            <div style="font-size:0.62rem;color:var(--text-dim);margin-bottom:0.3rem;">BATTERY (SIMULATED)</div>
+            <div class="battery-shell"><div class="battery-fill" id="battBar" style="width:62%;background:hsl(80,85%,40%);"></div><div class="battery-pct-label" id="battPct">62%</div></div>
+          </div>
+        </div>
+
+        <!-- Household -->
+        <div class="panel-section">
+          <div class="section-title">Household Load</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span class="status-pill pill-active" id="hhStatusBadge">ON</span>
+            <span class="reading-value" id="hhPower">2.40 W</span>
+          </div>
+        </div>
+
+        <!-- Quick Scenarios -->
+        <div class="panel-section">
+          <div class="section-title">Quick Scenarios</div>
+          <div class="scenario-grid">
+            <button class="btn scenario-btn active" data-scenario="NORMAL">Normal</button>
+            <button class="btn scenario-btn" data-scenario="EV_CHARGING">EV Charge</button>
+            <button class="btn scenario-btn" data-scenario="SOLAR_EV">Solar+EV</button>
+            <button class="btn scenario-btn btn-danger" data-scenario="OVERLOAD">Overload</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- CENTER: 3D Scene -->
+      <div class="panel-center">
+        <div id="threeContainer" style="flex:1;min-height:0;position:relative;">
+          <div id="cameraLabel">OVERVIEW · 3D DIGITAL TWIN</div>
+
+          <!-- View Mode Selector -->
+          <div style="position:absolute;top:10px;right:12px;z-index:10;" class="view-mode-bar">
+            <button class="view-mode-btn active" data-view-mode="STANDARD">STD</button>
+            <button class="view-mode-btn" data-view-mode="THERMAL">THERM</button>
+            <button class="view-mode-btn" data-view-mode="ENERGY">ENERGY</button>
+            <button class="view-mode-btn" data-view-mode="SENSOR">SENSOR</button>
+            <button class="view-mode-btn" data-view-mode="EXPLODED">EXPLODE</button>
+          </div>
+
+          <!-- Overlay badges -->
+          <div class="twin-badge" style="top:40px;right:12px;"><div class="twin-badge-title">TX LOAD</div><div class="twin-badge-value" id="txBadgeLoad">35.0%</div></div>
+          <div class="twin-badge" style="bottom:80px;left:12px;"><div class="twin-badge-title">SOLAR</div><div class="twin-badge-value" style="color:var(--solar-color);" id="txBadgeSolar">1.04 W</div></div>
+          <div class="twin-badge" style="bottom:80px;right:12px;"><div class="twin-badge-title">EV STATUS</div><div class="twin-badge-value" style="color:var(--ev-color);" id="txBadgeEV">IDLE</div></div>
+
+          <!-- Camera controls -->
+          <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:0.35rem;z-index:10;background:rgba(4,9,15,0.88);padding:5px 10px;border-radius:8px;border:1px solid var(--border-bright);">
+            <button class="btn cam-btn" data-camera="overview">Overview</button>
+            <button class="btn cam-btn" data-camera="transformer">Transformer</button>
+            <button class="btn cam-btn" data-camera="solar">Solar</button>
+            <button class="btn cam-btn" data-camera="ev">EV</button>
+            <button class="btn cam-btn" data-camera="energyFlow">Flow</button>
+            <button class="btn btn-sm btn-primary" id="explodedViewBtn">💥 EXPLODED</button>
+          </div>
+
+          <!-- Demo overlay -->
+          <div id="demoOverlay" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;z-index:20;">
+            <div class="demo-caption" id="demoCaption" style="opacity:0;pointer-events:none;">
+              <div class="demo-caption-title" id="demoCaptionTitle">UNITWIN GRID</div>
+              <div class="demo-caption-sub" id="demoCaptionSub">Initializing...</div>
+              <div class="demo-progress-bar-wrap"><div class="demo-progress-fill" id="demoProgressBar"></div></div>
+            </div>
+            <div style="pointer-events:all;display:flex;gap:0.5rem;margin-top:0.75rem;">
+              <button class="btn btn-sm" id="demoPauseBtn" style="display:none;">⏸ PAUSE</button>
+              <button class="btn btn-sm" id="demoSkipBtn" style="display:none;">⏭ SKIP</button>
+              <span style="font-family:var(--font-mono);font-size:0.65rem;color:var(--text-dim);display:flex;align-items:center;gap:0.4rem;"><span id="demoTimeLabel"></span><span id="demoStepDesc"></span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom sparklines -->
+        <div class="bottom-bar">
+          <div class="bottom-chart-block"><div class="bottom-chart-label">Voltage (V)</div><div class="bottom-chart-value" id="sensorTxVoltage">12.10</div><div class="bottom-chart-canvas"><canvas id="chartVoltage"></canvas></div></div>
+          <div class="bottom-chart-block"><div class="bottom-chart-label">Current (A)</div><div class="bottom-chart-value" id="sensorTxCurrent">0.350</div><div class="bottom-chart-canvas"><canvas id="chartCurrent"></canvas></div></div>
+          <div class="bottom-chart-block"><div class="bottom-chart-label">Power (W)</div><div class="bottom-chart-value" id="sensorTxPower">4.24</div><div class="bottom-chart-canvas"><canvas id="chartPower"></canvas></div></div>
+          <div class="bottom-chart-block"><div class="bottom-chart-label">Temp (°C)</div><div class="bottom-chart-value" id="sensorTxTemp">32.4</div><div class="bottom-chart-canvas"><canvas id="chartTemp"></canvas></div></div>
+          <div class="bottom-chart-block"><div class="bottom-chart-label">Loading (%)</div><div class="bottom-chart-value" id="sensorLoading">35.0</div><div class="bottom-chart-canvas"><canvas id="chartLoading"></canvas></div></div>
+        </div>
+      </div>
+
+      <!-- RIGHT PANEL -->
+      <div class="panel-right">
+        <!-- Health Index -->
+        <div class="panel-section">
+          <div class="section-title">Prototype Health Index</div>
+          <div class="health-ring-wrap">
+            <div style="position:relative;width:110px;height:110px;">
+              <svg class="health-ring-svg" viewBox="0 0 100 100">
+                <circle class="health-ring-bg" cx="50" cy="50" r="44"/>
+                <circle class="health-ring-val" id="healthScoreRing" cx="50" cy="50" r="44" style="stroke:#00d68f;stroke-dashoffset:0"/>
+              </svg>
+              <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                <div class="health-num" id="healthScore">94</div>
+                <div class="health-lbl" id="healthLabel">HEALTHY</div>
+              </div>
+            </div>
+          </div>
+          <div style="font-size:0.58rem;color:var(--text-dim);text-align:center;margin-bottom:0.5rem;">PROTOTYPE INDEX — NOT INDUSTRY CERTIFIED</div>
+          <div class="factor-row"><span class="factor-name">Loading</span><div class="factor-bar-wrap"><div class="factor-bar" id="factor_loading" style="width:90%"></div></div><span class="factor-val"><span id="factorLabel_loading">GOOD</span></span></div>
+          <div class="factor-row"><span class="factor-name">Temp</span><div class="factor-bar-wrap"><div class="factor-bar" id="factor_temperature" style="width:95%"></div></div><span class="factor-val"><span id="factorLabel_temperature">GOOD</span></span></div>
+          <div class="factor-row"><span class="factor-name">Voltage</span><div class="factor-bar-wrap"><div class="factor-bar" id="factor_voltage" style="width:100%"></div></div><span class="factor-val"><span id="factorLabel_voltage">GOOD</span></span></div>
+          <div class="factor-row"><span class="factor-name">Vibration</span><div class="factor-bar-wrap"><div class="factor-bar" id="factor_vibration" style="width:88%"></div></div><span class="factor-val"><span id="factorLabel_vibration">GOOD</span></span></div>
+        </div>
+
+        <!-- Loading Ring -->
+        <div class="panel-section">
+          <div class="section-title">Transformer Loading</div>
+          <div class="loading-ring-wrap">
+            <div style="position:relative;width:130px;height:130px;">
+              <svg class="loading-svg" viewBox="0 0 120 120">
+                <circle class="loading-arc-bg" cx="60" cy="60" r="52"/>
+                <circle class="loading-arc-val" id="loadingArc" cx="60" cy="60" r="52" style="stroke:#00d68f;"/>
+              </svg>
+              <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                <div class="loading-pct-big" id="loadingPct">35.0%</div>
+                <div class="loading-state-lbl" id="loadingState">NORMAL</div>
+              </div>
+            </div>
+          </div>
+          <div style="text-align:center;"><span class="state-badge state-normal" id="loadingStateBadge">NORMAL</span></div>
+          <div style="font-size:0.6rem;color:var(--text-dim);margin-top:0.5rem;text-align:center;line-height:1.5;">0–50% NORMAL · 50–75% MODERATE<br>75–90% HIGH · 90%+ CRITICAL</div>
+        </div>
+
+        <!-- Intelligence -->
+        <div class="panel-section">
+          <div class="section-title">Twin Intelligence</div>
+          <div class="intel-source" id="intelSource">PROTOTYPE INTELLIGENCE</div>
+          <div class="intel-grid">
+            <div class="intel-item"><div class="intel-item-label">System State</div><div class="intel-item-value" id="intelState">NORMAL LOAD</div></div>
+            <div class="intel-item"><div class="intel-item-label">EV Impact</div><div class="intel-item-value" id="intelEVImpact">+0%</div></div>
+            <div class="intel-item"><div class="intel-item-label">Thermal</div><div class="intel-item-value" id="intelThermal">NORMAL</div></div>
+            <div class="intel-item"><div class="intel-item-label">Vibration</div><div class="intel-item-value" id="intelVibration">NORMAL</div></div>
+          </div>
+          <div style="font-size:0.6rem;color:var(--text-dim);margin-bottom:0.3rem;text-transform:uppercase;letter-spacing:0.1em;">Recommendation</div>
+          <div class="intel-rec" id="intelRec">System operating within normal parameters.</div>
+        </div>
+
+        <!-- Connectivity -->
+        <div class="panel-section">
+          <div class="section-title">Connectivity</div>
+          <div class="conn-grid">
+            <div class="conn-item-block"><span class="conn-label">ESP32</span><span class="conn-dot conn-off" id="connESP32b"></span></div>
+            <div class="conn-item-block"><span class="conn-label">Firebase</span><span class="conn-dot conn-off" id="connDatabaseb"></span></div>
+            <div class="conn-item-block"><span class="conn-label">Sensors</span><span class="conn-dot conn-on" id="connSensorb"></span></div>
+            <div class="conn-item-block"><span class="conn-label">Twin Sync</span><span class="conn-dot conn-on" id="connTwinb"></span></div>
+          </div>
+          <div style="font-size:0.62rem;color:var(--text-dim);margin-top:0.5rem;font-family:var(--font-mono);">Updated: <span id="lastUpdateb">—</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════ DIGITAL TWIN VIEW ══════════════════ -->
+    <section class="page full-page" id="page-twin">
+      <div class="page-header">
+        <div><div class="page-title">Digital Twin — 3D View</div><div class="page-subtitle">Full-screen interactive 3D visualization</div></div>
+        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+          <div class="view-mode-bar">
+            <button class="view-mode-btn active" data-view-mode="STANDARD">STANDARD</button>
+            <button class="view-mode-btn" data-view-mode="THERMAL">THERMAL</button>
+            <button class="view-mode-btn" data-view-mode="ENERGY">ENERGY</button>
+            <button class="view-mode-btn" data-view-mode="SENSOR">SENSOR</button>
+            <button class="view-mode-btn" data-view-mode="EXPLODED">EXPLODED</button>
+          </div>
+          <div style="display:flex;gap:0.35rem;">
+            <button class="btn cam-btn" data-camera="overview">Overview</button>
+            <button class="btn cam-btn" data-camera="transformer">Transformer</button>
+            <button class="btn cam-btn" data-camera="solar">Solar</button>
+            <button class="btn cam-btn" data-camera="ev">EV</button>
+            <button class="btn cam-btn" data-camera="household">Household</button>
+          </div>
+        </div>
+      </div>
+      <div style="flex:1;background:var(--bg-deep);border-radius:var(--radius-lg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-family:var(--font-mono);font-size:0.8rem;">
+        <div style="text-align:center;">
+          <div style="font-size:2rem;color:var(--accent-cyan);margin-bottom:0.75rem;">◈</div>
+          <div style="color:var(--text-primary);font-size:1rem;font-weight:700;margin-bottom:0.5rem;">3D Digital Twin Active on Dashboard</div>
+          <div style="max-width:400px;color:var(--text-secondary);line-height:1.6;">Navigate to the <strong>Dashboard</strong> to interact with the 3D model. Click any component to inspect live telemetry.</div>
+          <button class="btn btn-primary" style="margin-top:1rem;" onclick="document.querySelector('[data-page=dashboard]').click()">→ Go to Dashboard</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════ LIVE MONITORING ══════════════════ -->
+    <section class="page full-page" id="page-monitoring">
+      <div class="page-header">
+        <div><div class="page-title">Live Sensor Monitoring</div><div class="page-subtitle">All sensor readings · Source transparency · Real-time</div></div>
+        <span class="status-pill pill-active" id="monitoringModeBadge">◉ SIMULATION</span>
+      </div>
+      <div class="sensor-grid">
+        <div class="sensor-card"><div class="sensor-card-label">DS18B20 — Transformer Temp</div><div class="sensor-card-value" id="sensorTxTemp2">32.4</div><div class="sensor-card-unit">°C · Surface Temperature</div><div class="stats-row"><span class="stat-chip">Min: <span id="statTempMin">—</span></span><span class="stat-chip">Max: <span id="statTempMax">—</span></span><span class="stat-chip">Avg: <span id="statTempAvg">—</span></span></div><span class="src-tag src-simulation" id="srcTemp">SIMULATION</span></div>
+        <div class="sensor-card"><div class="sensor-card-label">MPU6500 — Vibration (RMS)</div><div class="sensor-card-value" id="sensorVibration2">0.120</div><div class="sensor-card-unit">g · Acceleration RMS</div><div class="stats-row"><span class="stat-chip">Min: <span id="statVibMin">—</span></span><span class="stat-chip">Max: <span id="statVibMax">—</span></span></div><span class="src-tag src-simulation" id="srcVib">SIMULATION</span></div>
+        <div class="sensor-card"><div class="sensor-card-label">INA219 — Solar Voltage</div><div class="sensor-card-value" id="sensorSolarVoltage2">5.80</div><div class="sensor-card-unit">V · 6V PV Panel</div><span class="src-tag src-simulation" id="srcSolarV">SIMULATION</span></div>
+        <div class="sensor-card"><div class="sensor-card-label">INA219 — Solar Current</div><div class="sensor-card-value" id="sensorSolarCurrent2">0.180</div><div class="sensor-card-unit">A · DC Output</div><span class="src-tag src-simulation" id="srcSolarI">SIMULATION</span></div>
+        <div class="sensor-card"><div class="sensor-card-label">INA219 — Solar Power</div><div class="sensor-card-value" style="color:var(--solar-color);" id="sensorSolarPower2">1.04</div><div class="sensor-card-unit">W (V × I derived)</div><span class="src-tag src-derived">DERIVED</span></div>
+        <div class="sensor-card"><div class="sensor-card-label">DHT22 — Ambient Temp</div><div class="sensor-card-value" id="sensorAmbTemp2">28.5</div><div class="sensor-card-unit">°C · Room Temperature</div><span class="src-tag src-simulation" id="srcAmbT">SIMULATION</span></div>
+        <div class="sensor-card"><div class="sensor-card-label">DHT22 — Humidity</div><div class="sensor-card-value" id="sensorHumidity2">65</div><div class="sensor-card-unit">% Relative Humidity</div><span class="src-tag src-simulation" id="srcAmbH">SIMULATION</span></div>
+        <div class="sensor-card"><div class="sensor-card-label">ZMPT101B — TX Voltage</div><div class="sensor-card-value" id="sensorTxVoltage2">12.10</div><div class="sensor-card-unit">V · AC Secondary (simulated)</div><span class="src-tag src-simulation">SIMULATION</span></div>
+        <div class="sensor-card"><div class="sensor-card-label">ACS712 — TX Current</div><div class="sensor-card-value" id="sensorTxCurrent2">0.350</div><div class="sensor-card-unit">A · Secondary Current</div><span class="src-tag src-simulation">SIMULATION</span></div>
+        <div class="sensor-card"><div class="sensor-card-label">TX Power (Derived)</div><div class="sensor-card-value" style="color:var(--tx-color);" id="sensorTxPower2">4.24</div><div class="sensor-card-unit">W (V × I × PF)</div><span class="src-tag src-derived">DERIVED</span></div>
+        <div class="sensor-card"><div class="sensor-card-label">EV Load Emulator</div><div class="sensor-card-value" style="color:var(--ev-color);" id="sensorEVLoad2">0.00</div><div class="sensor-card-unit">W · 12V DC Fan</div><span class="src-tag src-simulation">SIMULATION</span></div>
+        <div class="sensor-card"><div class="sensor-card-label">Household Base Load</div><div class="sensor-card-value" style="color:var(--hh-color);" id="sensorHHLoad2">2.40</div><div class="sensor-card-unit">W · Resistive Load</div><span class="src-tag src-simulation">SIMULATION</span></div>
+        <div class="sensor-card" style="border-color:rgba(42,127,255,0.3);"><div class="sensor-card-label">Transformer Loading</div><div class="sensor-card-value" style="color:var(--accent-cyan);" id="loadingPct2">35.0%</div><div class="sensor-card-unit">of rated 12 VA</div><span class="src-tag src-derived">DERIVED</span></div>
+      </div>
+      <div class="chart-card"><div class="chart-card-header"><span class="card-title2">MPU6500 Vibration — Real-time Waveform</span></div><div class="chart-container"><canvas id="chartAnalyticsVibration"></canvas></div></div>
+    </section>
+
+    <!-- ══════════════════ ENERGY FLOW ══════════════════ -->
+    <section class="page full-page" id="page-energyflow">
+      <div class="page-header"><div><div class="page-title">Energy Flow Network</div><div class="page-subtitle">Solar → Grid → Transformer → Household / EV</div></div></div>
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+        <div class="card" style="flex:1;min-width:260px;">
+          <div class="card-title">Energy Path</div>
+          <div class="arch-flow">
+            <div class="arch-node arch-active" style="border-color:var(--solar-color);color:var(--solar-color);">☀ SOLAR PANELS<br><span style="font-size:0.65rem;" id="flowSolarW">1.04 W</span></div>
+            <div class="arch-arrow"></div>
+            <div class="arch-node">GRID / POWER NETWORK</div>
+            <div class="arch-arrow"></div>
+            <div class="arch-node arch-active">⚡ TRANSFORMER (12VA)<br><span style="font-size:0.65rem;" id="flowTxLoad">Loading: 35%</span></div>
+            <div style="display:flex;gap:2rem;margin-top:0;">
+              <div class="arch-flow"><div class="arch-arrow" style="height:14px;"></div><div class="arch-node" style="min-width:110px;">🏠 HOUSEHOLD<br><span style="font-size:0.65rem;color:var(--hh-color);" id="flowHHW">2.4 W</span></div></div>
+              <div class="arch-flow"><div class="arch-arrow" style="height:14px;"></div><div class="arch-node" style="min-width:110px;border-color:var(--ev-color);">🚗 EV CHARGER<br><span style="font-size:0.65rem;color:var(--ev-color);" id="flowEVW">0.0 W</span></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="chart-card" style="flex:1;min-width:280px;"><div class="chart-card-header"><div class="card-title2">Solar vs EV Demand</div></div><div class="chart-container" style="height:220px;"><canvas id="chartSolarVsEV"></canvas></div></div>
+        <div class="card" style="min-width:240px;"><div class="card-title">Load Change Analysis</div><div id="causeEffectChain" style="display:flex;flex-direction:column;gap:0.25rem;"></div></div>
+      </div>
+      <div class="card-grid" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr));">
+        <div class="card"><div class="card-title">Solar → Grid</div><div class="reading-row"><span class="reading-label">Status</span><span class="status-pill pill-active" id="flowStatus1">ACTIVE</span></div><div class="reading-row"><span class="reading-label">Power</span><span class="reading-value" id="flowPower1">1.04 W</span></div></div>
+        <div class="card"><div class="card-title">Grid → Transformer</div><div class="reading-row"><span class="reading-label">Status</span><span class="status-pill pill-active" id="flowStatus2">ACTIVE</span></div><div class="reading-row"><span class="reading-label">Power</span><span class="reading-value" id="flowPower2">4.24 W</span></div></div>
+        <div class="card"><div class="card-title">Transformer → House</div><div class="reading-row"><span class="reading-label">Status</span><span class="status-pill pill-active" id="flowStatus3">ACTIVE</span></div><div class="reading-row"><span class="reading-label">Power</span><span class="reading-value" id="flowPower3">2.40 W</span></div></div>
+        <div class="card"><div class="card-title">Transformer → EV</div><div class="reading-row"><span class="reading-label">Status</span><span class="status-pill pill-idle" id="flowStatus4">IDLE</span></div><div class="reading-row"><span class="reading-label">Power</span><span class="reading-value" id="flowPower4">0.00 W</span></div></div>
+      </div>
+    </section>
+
+    <!-- ══════════════════ DEVICE HEALTH ══════════════════ -->
+    <section class="page full-page" id="page-devicehealth">
+      <div class="page-header"><div><div class="page-title">Device Health</div><div class="page-subtitle">ESP32 diagnostics · Firebase · Connectivity</div></div></div>
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-title">ESP32 Controller</div>
+          <div class="device-stat-row"><span class="device-stat-label">Status</span><span class="device-stat-value device-offline" id="devESP32Status">OFFLINE</span></div>
+          <div class="device-stat-row"><span class="device-stat-label">Uptime</span><span class="device-stat-value" id="devUptime">—</span></div>
+          <div class="device-stat-row"><span class="device-stat-label">Packets Sent</span><span class="device-stat-value" id="devPackets">0</span></div>
+          <div class="device-stat-row"><span class="device-stat-label">Last Packet</span><span class="device-stat-value" id="devLastPacket">—</span></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Firebase Database</div>
+          <div class="device-stat-row"><span class="device-stat-label">Connection</span><span class="device-stat-value device-offline" id="devFirebaseStatus">DISCONNECTED</span></div>
+          <div class="device-stat-row"><span class="device-stat-label">Data Freshness</span><span class="device-stat-value" id="devDataFreshness">—</span></div>
+          <div class="device-stat-row"><span class="device-stat-label">DB URL</span><span class="device-stat-value" style="font-size:0.62rem;">unitwin-grid-default-rtdb</span></div>
+          <div class="device-stat-row"><span class="device-stat-label">Path</span><span class="device-stat-value" style="font-size:0.62rem;">unitwin/</span></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Sensor Bus Health</div>
+          <div class="device-stat-row"><span class="device-stat-label">I2C Bus 0 (21/22)</span><span class="device-stat-value">OLED + MPU6500</span></div>
+          <div class="device-stat-row"><span class="device-stat-label">I2C Bus 1 (26/27)</span><span class="device-stat-value">INA219</span></div>
+          <div class="device-stat-row"><span class="device-stat-label">1-Wire (GPIO 25)</span><span class="device-stat-value">DS18B20</span></div>
+          <div class="device-stat-row"><span class="device-stat-label">Digital (GPIO 4)</span><span class="device-stat-value">DHT22</span></div>
+          <div class="device-stat-row"><span class="device-stat-label">LED (GPIO 18/19)</span><span class="device-stat-value">Thermal Alarm</span></div>
+        </div>
+        <div class="card">
+          <div class="card-title">System Mode</div>
+          <div class="device-stat-row"><span class="device-stat-label">Data Source</span><span class="device-stat-value" id="devDataMode">SIMULATION</span></div>
+          <div class="device-stat-row"><span class="device-stat-label">Firmware</span><span class="device-stat-value">unitwin_esp32_v1</span></div>
+          <div class="device-stat-row"><span class="device-stat-label">Temp Alarm</span><span class="device-stat-value">≥ 35.0°C</span></div>
+          <div class="device-stat-row"><span class="device-stat-label">Update Rate</span><span class="device-stat-value">1.5 sec</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════ ANALYTICS ══════════════════ -->
+    <section class="page full-page" id="page-analytics">
+      <div class="page-header" style="flex-wrap:wrap;gap:0.75rem;">
+        <div><div class="page-title">Analytics</div><div class="page-subtitle">Time-series · Correlation · Statistics</div></div>
+        <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+          <div class="time-filter-bar">
+            <button class="btn btn-sm active" data-time-filter="LIVE">LIVE</button>
+            <button class="btn btn-sm" data-time-filter="1M">1 MIN</button>
+            <button class="btn btn-sm" data-time-filter="5M">5 MIN</button>
+            <button class="btn btn-sm" data-time-filter="15M">15 MIN</button>
+          </div>
+          <button class="btn btn-sm btn-primary" id="exportCSVBtn">⬇ Export CSV</button>
+        </div>
+      </div>
+      <div class="analytics-grid">
+        <div class="chart-card"><div class="chart-card-header"><span class="card-title2" style="color:#44aaff;">Voltage (V)</span></div><div class="chart-container"><canvas id="chartAnalyticsVoltage"></canvas></div></div>
+        <div class="chart-card"><div class="chart-card-header"><span class="card-title2" style="color:#00ddaa;">Current (A)</span></div><div class="chart-container"><canvas id="chartAnalyticsCurrent"></canvas></div></div>
+        <div class="chart-card"><div class="chart-card-header"><span class="card-title2" style="color:#ffcc44;">Power (W)</span></div><div class="chart-container"><canvas id="chartAnalyticsPower"></canvas></div></div>
+        <div class="chart-card"><div class="chart-card-header"><span class="card-title2" style="color:#ff6644;">Temperature (°C)</span></div><div class="chart-container"><canvas id="chartAnalyticsTemp"></canvas></div></div>
+        <div class="chart-card"><div class="chart-card-header"><span class="card-title2" style="color:#aa55ff;">EV Load (W)</span></div><div class="chart-container"><canvas id="chartAnalyticsEV"></canvas></div></div>
+        <div class="chart-card"><div class="chart-card-header"><span class="card-title2" style="color:#ffdd00;">Solar Generation (W)</span></div><div class="chart-container"><canvas id="chartAnalyticsSolar"></canvas></div></div>
+      </div>
+      <div class="card"><div class="card-title">Parameter Correlation Analysis</div><div id="correlationPanel" style="display:flex;gap:0.75rem;flex-wrap:wrap;"></div></div>
+    </section>
+
+    <!-- ══════════════════ INTELLIGENCE ══════════════════ -->
+    <section class="page full-page" id="page-intelligence">
+      <div class="page-header">
+        <div><div class="page-title">Twin Intelligence</div><div class="page-subtitle">Rule-based prototype analytics — PROTOTYPE INTELLIGENCE</div></div>
+        <div class="intel-source">PROTOTYPE INTELLIGENCE — NOT AN ML MODEL</div>
+      </div>
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+        <div class="card" style="flex:1;min-width:240px;"><div class="card-title">Current Assessment</div><div class="intel-grid"><div class="intel-item"><div class="intel-item-label">System State</div><div class="intel-item-value" id="intelStateB">NORMAL LOAD</div></div><div class="intel-item"><div class="intel-item-label">EV Impact</div><div class="intel-item-value" id="intelEVImpactB">0%</div></div><div class="intel-item"><div class="intel-item-label">Thermal</div><div class="intel-item-value" id="intelThermalB">NORMAL</div></div><div class="intel-item"><div class="intel-item-label">Vibration</div><div class="intel-item-value" id="intelVibrationB">NORMAL</div></div></div></div>
+        <div class="card" style="flex:1;min-width:260px;"><div class="card-title">Actionable Recommendation</div><div class="intel-rec" id="intelRecB">System operating normally.</div><div id="trendAlertPanel" style="margin-top:0.75rem;display:none;"><div class="intel-rec" style="border-color:var(--accent-amber);color:var(--accent-amber);" id="trendAlertText"></div></div></div>
+        <div class="card" style="flex:1;min-width:240px;"><div class="card-title">Load Forecast</div><div class="intel-source" id="forecastSource">PROTOTYPE FORECAST</div><div class="intel-grid"><div class="intel-item"><div class="intel-item-label">Current Load</div><div class="intel-item-value" id="forecastCurrent">35%</div></div><div class="intel-item"><div class="intel-item-label">Predicted</div><div class="intel-item-value" id="forecastPredicted">33%</div></div><div class="intel-item"><div class="intel-item-label">Trend</div><div class="intel-item-value" id="forecastTrend">STABLE</div></div><div class="intel-item"><div class="intel-item-label">Temp Trend</div><div class="intel-item-value" id="forecastTempTrend">STABLE</div></div></div></div>
+      </div>
+      <div class="card"><div class="card-title">Cause-and-Effect Chain Analysis</div><div style="font-size:0.68rem;color:var(--text-dim);margin-bottom:0.75rem;">Activate a scenario to see dynamic cause-and-effect relationships</div><div id="causeEffectChainB" style="display:flex;flex-direction:column;gap:0.3rem;max-width:500px;"></div></div>
+    </section>
+
+    <!-- ══════════════════ SCENARIOS ══════════════════ -->
+    <section class="page full-page" id="page-scenarios">
+      <div class="page-header"><div><div class="page-title">Scenario Simulator</div><div class="page-subtitle">Interactive cause-and-effect scenarios — all labeled SIMULATION</div></div></div>
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+        <div class="scenario-panel" style="flex:1;min-width:220px;">
+          <div class="card-title">Preset Scenarios</div>
+          <div style="display:grid;grid-template-columns:1fr;gap:0.5rem;margin-top:0.5rem;">
+            <button class="btn scenario-btn active" data-scenario="NORMAL" style="text-align:left;padding:0.55rem 0.8rem;"><div style="font-weight:700;">Normal Operation</div><div style="font-size:0.62rem;color:var(--text-dim);">Solar + Household · Low loading</div></button>
+            <button class="btn scenario-btn" data-scenario="EV_CHARGING" style="text-align:left;padding:0.55rem 0.8rem;"><div style="font-weight:700;color:var(--ev-color);">⚡ EV Charging</div><div style="font-size:0.62rem;color:var(--text-dim);">EV emulator active · Moderate load</div></button>
+            <button class="btn scenario-btn" data-scenario="SOLAR_EV" style="text-align:left;padding:0.55rem 0.8rem;"><div style="font-weight:700;color:var(--solar-color);">☀ Solar + EV</div><div style="font-size:0.62rem;color:var(--text-dim);">Combined scenario · Higher load</div></button>
+            <button class="btn scenario-btn" data-scenario="HIGH_DEMAND" style="text-align:left;padding:0.55rem 0.8rem;"><div style="font-weight:700;color:var(--accent-amber);">▲ High EV Demand</div><div style="font-size:0.62rem;color:var(--text-dim);">Maximum EV · High transformer stress</div></button>
+            <button class="btn scenario-btn btn-danger" data-scenario="OVERLOAD" style="text-align:left;padding:0.55rem 0.8rem;"><div style="font-weight:700;">⚠ Overload</div><div style="font-size:0.62rem;color:var(--text-dim);">Critical loading · Alert active</div></button>
+            <button class="btn scenario-btn" data-scenario="NO_SOLAR" style="text-align:left;padding:0.55rem 0.8rem;"><div style="font-weight:700;">☁ No Solar</div><div style="font-size:0.62rem;color:var(--text-dim);">Grid-only supply</div></button>
+          </div>
+        </div>
+        <div class="scenario-panel" style="flex:1;min-width:220px;">
+          <div class="card-title">EV Load Level</div>
+          <div class="ev-level-grid" style="margin:0.75rem 0;">
+            <button class="btn active" data-ev-level="off">OFF</button>
+            <button class="btn" data-ev-level="low">LOW<br><span style="font-size:0.6rem;color:var(--text-dim);">1.2W</span></button>
+            <button class="btn" data-ev-level="medium">MED<br><span style="font-size:0.6rem;color:var(--text-dim);">3.0W</span></button>
+            <button class="btn" data-ev-level="high">HIGH<br><span style="font-size:0.6rem;color:var(--text-dim);">5.5W</span></button>
+          </div>
+          <div style="border-top:1px solid var(--border);padding-top:0.75rem;">
+            <div class="card-title">System Toggles</div>
+            <div class="toggle-wrap"><span class="toggle-label">Solar Generation</span><label class="toggle"><input type="checkbox" id="solarToggle" checked><span class="toggle-slider"></span></label></div>
+            <div class="toggle-wrap"><span class="toggle-label">Household Load</span><label class="toggle"><input type="checkbox" id="householdToggle" checked><span class="toggle-slider"></span></label></div>
+          </div>
+          <div style="border-top:1px solid var(--border);padding-top:0.75rem;margin-top:0.5rem;">
+            <div class="card-title">Demo Controls</div>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+              <button class="btn btn-demo" id="demoStartBtn2">▶ START DEMO</button>
+              <button class="btn btn-sm" id="demoPauseBtn2">⏸ PAUSE</button>
+              <button class="btn btn-sm" id="demoSkipBtn2">⏭ SKIP</button>
+            </div>
+            <div style="margin-top:0.5rem;background:var(--bg-card);border-radius:var(--radius);height:4px;"><div style="height:100%;border-radius:2px;background:linear-gradient(90deg,var(--accent-blue),var(--accent-cyan));width:0;" id="demoProgressBarB"></div></div>
+          </div>
+        </div>
+        <div class="scenario-panel" style="flex:1;min-width:200px;">
+          <div class="card-title">Scenario Result</div>
+          <div class="reading-row"><span class="reading-label">Loading</span><span class="reading-value" id="scenLoadingPct">35.0%</span></div>
+          <div class="reading-row"><span class="reading-label">Temperature</span><span class="reading-value" id="scenTemp">32.4°C</span></div>
+          <div class="reading-row"><span class="reading-label">Vibration</span><span class="reading-value" id="scenVib">0.120g</span></div>
+          <div class="reading-row"><span class="reading-label">Health</span><span class="reading-value" id="scenHealth">94%</span></div>
+          <div class="reading-row"><span class="reading-label">TX State</span><span class="state-badge state-normal" id="scenState">NORMAL</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════ WHAT-IF ══════════════════ -->
+    <section class="page full-page" id="page-whatif">
+      <div class="page-header"><div><div class="page-title">What-If Analysis</div><div class="page-subtitle">Predictive load and thermal impact calculator</div></div></div>
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+        <div class="card" style="flex:1;min-width:260px;">
+          <div class="card-title">Input Parameters</div>
+          <div class="whatif-row"><label class="whatif-label"><span>EV Load Power</span><span class="whatif-value" id="wiEVLabel">0.0 W</span></label><input type="range" class="whatif-slider" id="wiEV" min="0" max="5.5" step="0.1" value="0"></div>
+          <div class="whatif-row"><label class="whatif-label"><span>Solar Generation</span><span class="whatif-value" id="wiSolarLabel">1.2 W</span></label><input type="range" class="whatif-slider" id="wiSolar" min="0" max="1.2" step="0.05" value="1.2"></div>
+          <div class="whatif-row"><label class="whatif-label"><span>Household Load</span><span class="whatif-value" id="wiHHLabel">2.4 W</span></label><input type="range" class="whatif-slider" id="wiHH" min="0" max="4.0" step="0.1" value="2.4"></div>
+        </div>
+        <div class="projection-card" style="flex:1;min-width:240px;">
+          <div class="card-title">Projected Impact</div>
+          <div class="reading-row"><span class="reading-label">Total Power</span><span class="reading-value" id="wiTotalPower">—</span></div>
+          <div class="reading-row"><span class="reading-label">Projected Loading</span><span class="reading-value" style="color:var(--accent-cyan);" id="wiLoading">—</span></div>
+          <div class="reading-row"><span class="reading-label">Projected Temp Rise</span><span class="reading-value" id="wiTemp">—</span></div>
+          <div class="reading-row"><span class="reading-label">Projected Health</span><span class="reading-value" id="wiHealth">—</span></div>
+          <div class="reading-row"><span class="reading-label">Risk Level</span><span class="state-badge state-normal" id="wiRisk">LOW</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════ ALERTS ══════════════════ -->
+    <section class="page full-page" id="page-alerts">
+      <div class="page-header">
+        <div><div class="page-title">Alert Center</div><div class="page-subtitle">Threshold-based · Rule-driven · All timestamps</div></div>
+        <button class="btn btn-sm btn-danger" id="clearAlertsBtn">✕ Clear All</button>
+      </div>
+      <div class="card" style="flex:1;"><div id="alertsList"><div class="no-alerts">No active alerts</div></div></div>
+    </section>
+
+    <!-- ══════════════════ ARCHITECTURE ══════════════════ -->
+    <section class="page full-page" id="page-architecture">
+      <div class="page-header"><div><div class="page-title">System Architecture</div><div class="page-subtitle">Physical → Sensors → ESP32 → Firebase → Digital Twin → Intelligence</div></div></div>
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+        <div class="card" style="flex:1;min-width:200px;"><div class="card-title">1. Physical Layer</div><div class="arch-flow"><div class="arch-node arch-active" style="border-color:var(--solar-color);">☀ Solar Panel (6V, 1.2W)</div><div class="arch-arrow"></div><div class="arch-node arch-active">⚡ Transformer (230V/12V, 1A)</div><div class="arch-arrow"></div><div class="arch-node">🏠 Household Base Load</div><div style="height:6px;"></div><div class="arch-node" style="border-color:var(--ev-color);">🚗 EV Load Emulator (12V Fan)</div></div></div>
+        <div class="card" style="flex:1;min-width:200px;"><div class="card-title">2. Sensor Interface</div><div style="display:flex;flex-direction:column;gap:0.35rem;"><div class="arch-node">DS18B20 → Temp (1-Wire GPIO25)</div><div class="arch-node">INA219 → DC Power (I2C 0x40)</div><div class="arch-node">MPU6500 → Vibration (I2C 0x68)</div><div class="arch-node">DHT22 → Ambient (GPIO4)</div><div class="arch-node">SSD1306 → OLED (I2C 0x3C)</div><div class="arch-node" style="opacity:0.5;">ZMPT101B → AC Voltage [STANDBY]</div><div class="arch-node" style="opacity:0.5;">ACS712 → AC Current [STANDBY]</div></div></div>
+        <div class="card" style="flex:1;min-width:200px;"><div class="card-title">3. Edge &amp; Cloud</div><div class="arch-flow"><div class="arch-node arch-active">ESP32 (38-pin)<br><span style="font-size:0.6rem;color:var(--accent-cyan);">Edge Processing · HTTPS REST</span></div><div class="arch-arrow"></div><div class="arch-node">Wi-Fi 2.4GHz</div><div class="arch-arrow"></div><div class="arch-node arch-active">Firebase Realtime DB</div><div class="arch-arrow"></div><div class="arch-node arch-active" style="border-color:var(--accent-green);">UNITWIN Digital Twin State</div></div></div>
+        <div class="card" style="flex:1;min-width:200px;"><div class="card-title">4. Intelligence &amp; UI</div><div style="display:flex;flex-direction:column;gap:0.35rem;"><div class="arch-node arch-active">3D WebGL Digital Twin</div><div class="arch-node arch-active">Prototype Health Index</div><div class="arch-node">Rule-Based Diagnostics</div><div class="arch-node">Trend Analysis Engine</div><div class="arch-node">Threshold Alert System</div><div class="arch-node">What-If Simulator</div><div class="arch-node">Engineering Reports</div></div></div>
+      </div>
+    </section>
+
+    <!-- ══════════════════ HARDWARE ══════════════════ -->
+    <section class="page full-page" id="page-hardware">
+      <div class="page-header"><div><div class="page-title">Hardware Reference</div><div class="page-subtitle">Sensor pinout · Wiring · Specifications</div></div></div>
+      <div class="card">
+        <div class="card-title">ESP32 Pin Assignment</div>
+        <table style="width:100%;border-collapse:collapse;font-size:0.72rem;">
+          <thead><tr style="border-bottom:1px solid var(--border-bright);"><th style="text-align:left;padding:0.4rem 0.6rem;color:var(--text-dim);">GPIO</th><th style="text-align:left;padding:0.4rem 0.6rem;color:var(--text-dim);">Component</th><th style="text-align:left;padding:0.4rem 0.6rem;color:var(--text-dim);">Protocol</th><th style="text-align:left;padding:0.4rem 0.6rem;color:var(--text-dim);">Purpose</th></tr></thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.35rem 0.6rem;font-family:var(--font-mono);color:var(--accent-cyan);">GPIO 21</td><td style="padding:0.35rem 0.6rem;">OLED + MPU6500</td><td style="padding:0.35rem 0.6rem;">I2C SDA (Bus 0)</td><td style="padding:0.35rem 0.6rem;color:var(--text-dim);">Primary I2C data</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.35rem 0.6rem;font-family:var(--font-mono);color:var(--accent-cyan);">GPIO 22</td><td style="padding:0.35rem 0.6rem;">OLED + MPU6500</td><td style="padding:0.35rem 0.6rem;">I2C SCL (Bus 0)</td><td style="padding:0.35rem 0.6rem;color:var(--text-dim);">Primary I2C clock</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.35rem 0.6rem;font-family:var(--font-mono);color:var(--accent-cyan);">GPIO 26</td><td style="padding:0.35rem 0.6rem;">INA219</td><td style="padding:0.35rem 0.6rem;">I2C SDA (Bus 1)</td><td style="padding:0.35rem 0.6rem;color:var(--text-dim);">Solar power monitoring</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.35rem 0.6rem;font-family:var(--font-mono);color:var(--accent-cyan);">GPIO 27</td><td style="padding:0.35rem 0.6rem;">INA219</td><td style="padding:0.35rem 0.6rem;">I2C SCL (Bus 1)</td><td style="padding:0.35rem 0.6rem;color:var(--text-dim);">Solar power monitoring</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.35rem 0.6rem;font-family:var(--font-mono);color:var(--accent-cyan);">GPIO 25</td><td style="padding:0.35rem 0.6rem;">DS18B20</td><td style="padding:0.35rem 0.6rem;">1-Wire</td><td style="padding:0.35rem 0.6rem;color:var(--text-dim);">Transformer surface temp</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.35rem 0.6rem;font-family:var(--font-mono);color:var(--accent-cyan);">GPIO 4</td><td style="padding:0.35rem 0.6rem;">DHT22</td><td style="padding:0.35rem 0.6rem;">Digital</td><td style="padding:0.35rem 0.6rem;color:var(--text-dim);">Ambient temp &amp; humidity</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.35rem 0.6rem;font-family:var(--font-mono);color:var(--accent-green);">GPIO 18</td><td style="padding:0.35rem 0.6rem;">Green LED</td><td style="padding:0.35rem 0.6rem;">Digital OUTPUT</td><td style="padding:0.35rem 0.6rem;color:var(--text-dim);">Normal status (ON &lt; 35°C)</td></tr>
+            <tr><td style="padding:0.35rem 0.6rem;font-family:var(--font-mono);color:var(--accent-red);">GPIO 19</td><td style="padding:0.35rem 0.6rem;">Red LED</td><td style="padding:0.35rem 0.6rem;">Digital OUTPUT</td><td style="padding:0.35rem 0.6rem;color:var(--text-dim);">Thermal alarm blink (≥ 35°C)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ══════════════════ REPORTS ══════════════════ -->
+    <section class="page full-page" id="page-reports">
+      <div class="page-header"><div><div class="page-title">Engineering Reports</div><div class="page-subtitle">Automated session summary · Export</div></div><button class="btn btn-primary" id="generateReportBtn">⬇ Generate Report</button></div>
+      <div class="card" id="reportContent">
+        <div style="text-align:center;color:var(--text-dim);padding:2rem;font-size:0.8rem;">Click "Generate Report" to create a session summary report.</div>
+      </div>
+    </section>
+
+    <!-- ══════════════════ SETTINGS ══════════════════ -->
+    <section class="page full-page" id="page-settings">
+      <div class="page-header"><div><div class="page-title">Settings</div><div class="page-subtitle">Data mode · Firebase · Thresholds · Display</div></div></div>
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-title">Data Mode</div>
+          <div class="toggle-wrap"><span class="toggle-label">Live Firebase Mode</span><label class="toggle"><input type="checkbox" id="modeToggle"><span class="toggle-slider"></span></label></div>
+          <div style="font-size:0.68rem;color:var(--text-dim);margin-top:0.5rem;line-height:1.6;">Enable to receive live data from ESP32 via Firebase.<br>Disable to use physics simulation engine.</div>
+          <div style="margin-top:0.75rem;font-family:var(--font-mono);font-size:0.68rem;">Status: <span id="settingsMode" style="color:var(--accent-amber);">SIMULATION</span></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Firebase Config</div>
+          <div style="font-size:0.68rem;color:var(--text-dim);line-height:1.8;">
+            <div>Project: <span style="color:var(--text-mono);">unitwin-grid</span></div>
+            <div>DB: <span style="color:var(--text-mono);font-size:0.62rem;">unitwin-grid-default-rtdb</span></div>
+            <div>Path: <span style="color:var(--text-mono);">unitwin/</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Prototype Info</div>
+          <div style="font-size:0.72rem;color:var(--text-secondary);line-height:1.8;">
+            <div>Transformer: <span style="color:var(--text-mono);">12V / 1A (12VA)</span></div>
+            <div>Solar Panel: <span style="color:var(--text-mono);">6V / 1.2W</span></div>
+            <div>EV Emulator: <span style="color:var(--text-mono);">12V DC Fan</span></div>
+            <div>Controller: <span style="color:var(--text-mono);">ESP32 38-pin</span></div>
+            <div>Alarm Threshold: <span style="color:var(--text-mono);">35.0°C</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Keyboard Shortcuts</div>
+          <div style="font-family:var(--font-mono);font-size:0.68rem;color:var(--text-secondary);line-height:2.2;">
+            <div><kbd>D</kbd> Dashboard &nbsp; <kbd>A</kbd> Analytics &nbsp; <kbd>S</kbd> Scenarios</div>
+            <div><kbd>E</kbd> Energy Flow &nbsp; <kbd>W</kbd> What-If &nbsp; <kbd>R</kbd> Reset</div>
+            <div><kbd>X</kbd> Exploded View &nbsp; <kbd>Space</kbd> Pause Demo</div>
+            <div><kbd>Esc</kbd> Close Inspector</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div><!-- /#app -->
+
+<!-- ── Inspector HUD (dynamically positioned) ─────────────────── -->
+<div id="inspectorHUD" style="display:none;"></div>
+
+<!-- ── Application Entry Point ────────────────────────────────── -->
+<script type="module" src="./src/main.js"></script>
+
+</body>
+</html>
