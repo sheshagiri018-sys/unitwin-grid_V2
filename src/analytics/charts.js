@@ -1,236 +1,139 @@
-﻿/**
- * charts.js â€” UNITWIN GRID V2
- * Chart.js line chart management for all dashboard and analytics pages.
- * Uses global window.Chart from CDN (no import needed).
- */
-
-import { subscribe, getState } from '../core/state.js';
-
-// ---------------------------------------------------------------------------
-// Theme constants
-// ---------------------------------------------------------------------------
-const THEME = {
-  background: '#0d1a2e',
-  grid:       '#1a2a45',
-  text:       '#7a9ab5',
-  tick:       '#7a9ab5',
-};
-
-const MAX_POINTS = 120;
-
-// ---------------------------------------------------------------------------
-// Chart registry
-// ---------------------------------------------------------------------------
-/** @type {Map<string, import('chart.js').Chart>} */
-const registry = new Map();
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
 /**
- * Build a standard dark-industrial Chart.js config for a single-series line chart.
- * @param {string}  label       Dataset label
- * @param {string}  color       Hex color string
- * @param {boolean} showXAxis   Whether to show the x-axis (false for mini charts)
- * @returns {object}            Chart.js config object
+ * charts.js â€” UNITWIN GRID V2
  */
-function buildConfig(label, color, showXAxis = false) {
-  return {
+
+import { subscribe } from '../core/state.js';
+
+const MAX_POINTS = 60;
+const chartsRegistry = new Map();
+
+function _makeChart(canvasId, label, color, yLabel='') {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return null;
+
+  if (chartsRegistry.has(canvasId)) {
+    chartsRegistry.get(canvasId).destroy();
+  }
+
+  const chart = new window.Chart(canvas, {
     type: 'line',
     data: {
       labels: [],
-      datasets: [
-        {
-          label,
-          data: [],
-          borderColor:     color,
-          backgroundColor: 'transparent',
-          borderWidth:     2,
-          pointRadius:     0,
-          pointHoverRadius: 3,
-          tension: 0.35,
-          fill: false,
-        },
-      ],
+      datasets: [{
+        label: label,
+        data: [],
+        borderColor: color,
+        borderWidth: 1.5,
+        pointRadius: 0,
+        tension: 0.4,
+        fill: false
+      }]
     },
     options: {
-      responsive:  true,
-      animation:   false,
-      interaction: { mode: 'index', intersect: false },
+      responsive: true,
+      animation: false,
       plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: '#0d1a2e',
-          borderColor:     '#1a2a45',
-          borderWidth:     1,
-          titleColor:      '#7a9ab5',
-          bodyColor:       color,
-        },
+        legend: { display: false }
       },
       scales: {
-        x: {
-          display: showXAxis,
-          ticks:  { color: THEME.tick, maxRotation: 0, maxTicksLimit: 6 },
-          grid:   { color: THEME.grid },
-          border: { color: THEME.grid },
-        },
-        y: {
+        x: { display: false },
+        y: { 
           display: true,
-          ticks:  { color: THEME.tick, maxTicksLimit: 5 },
-          grid:   { color: THEME.grid },
-          border: { color: THEME.grid },
-        },
-      },
-    },
-  };
+          title: {
+            display: !!yLabel,
+            text: yLabel
+          }
+        }
+      }
+    }
+  });
+
+  chartsRegistry.set(canvasId, chart);
+  return chart;
 }
 
-/**
- * Create a Chart instance for the given canvas ID and register it.
- * Silently skips if the canvas element does not exist in the DOM.
- * @param {string}  canvasId
- * @param {string}  label
- * @param {string}  color
- * @param {boolean} showXAxis
- */
-function createChart(canvasId, label, color, showXAxis = false) {
-  const canvas = document.getElementById(canvasId);
-  if (!canvas) return;
-
-  // Destroy any existing instance to avoid canvas-reuse errors
-  if (registry.has(canvasId)) {
-    registry.get(canvasId).destroy();
-    registry.delete(canvasId);
-  }
-
-  // Background fill plugin (canvas background colour)
-  const bgPlugin = {
-    id: `bg_${canvasId}`,
-    beforeDraw(chart) {
-      const { ctx, chartArea } = chart;
-      if (!chartArea) return;
-      ctx.save();
-      ctx.fillStyle = THEME.background;
-      ctx.fillRect(0, 0, chart.width, chart.height);
-      ctx.restore();
-    },
-  };
-
-  const config = buildConfig(label, color, showXAxis);
-  // Attach background plugin per-chart so it doesn't pollute the global registry
-  const instance = new window.Chart(canvas, { ...config, plugins: [bgPlugin] });
-  registry.set(canvasId, instance);
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Return current time as HH:MM:SS string (used as x-axis label). */
 function nowLabel() {
   const d = new Date();
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
 }
 
-/**
- * Push one data point into a registered chart, trimming to MAX_POINTS.
- * @param {string}         canvasId
- * @param {number|null}    value
- */
-function pushPoint(canvasId, value) {
-  const chart = registry.get(canvasId);
-  if (!chart) return;
-
-  chart.data.labels.push(nowLabel());
-  chart.data.datasets[0].data.push(value != null ? Number(value) : null);
-
-  if (chart.data.labels.length > MAX_POINTS) {
-    chart.data.labels.shift();
-    chart.data.datasets[0].data.shift();
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
-/**
- * Initialise all Chart.js instances.
- * Safe to call multiple times â€” destroys previous instances first.
- */
 export function initCharts() {
   if (!window.Chart) {
-    console.warn('[charts] window.Chart not found â€” Chart.js CDN not loaded yet.');
+    console.warn('[charts] window.Chart not found.');
     return;
   }
 
-  // â”€â”€ Dashboard / monitoring mini charts (x-axis hidden) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  createChart('chartVoltage',   'Voltage (V)',      '#44aaff', false);
-  createChart('chartCurrent',   'Current (A)',      '#00ddaa', false);
-  createChart('chartPower',     'Power (W)',        '#ffcc44', false);
-  createChart('chartTemp',      'Temperature (Â°C)', '#ff6644', false);
-  createChart('chartLoading',   'Loading (%)',      '#00ccff', false);
-  createChart('chartSolar',     'Solar (W)',        '#ffdd00', false);
-  createChart('chartEV',        'EV Load (W)',      '#aa44ff', false);
-  createChart('chartVibration', 'Vibration (g)',    '#ff8844', false);
+  // Dashboard sparkline charts (small, bottom of screen)
+  _makeChart('chart-voltage', 'Voltage (V)', '#4488ff');
+  _makeChart('chart-current', 'Current (A)', '#44ffaa');
+  _makeChart('chart-power', 'Power (kW)', '#ffaa44');
+  _makeChart('chart-temp', 'Temperature (Â°C)', '#ff4444');
+  _makeChart('chart-vibration', 'Vibration (mm/s)', '#aa44ff');
+  _makeChart('chart-loading', 'Loading (%)', '#ffdd00');
+  _makeChart('chart-solar', 'Solar (W)', '#ffee00');
+  _makeChart('chart-ev', 'EV (kW)', '#aa44ff');
 
-  // â”€â”€ Analytics page charts (x-axis shown) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  createChart('chartAnalyticsVoltage',   'Voltage (V)',      '#44aaff', true);
-  createChart('chartAnalyticsCurrent',   'Current (A)',      '#00ddaa', true);
-  createChart('chartAnalyticsPower',     'Power (W)',        '#ffcc44', true);
-  createChart('chartAnalyticsTemp',      'Temperature (Â°C)', '#ff6644', true);
-  createChart('chartAnalyticsEV',        'EV Load (W)',      '#aa44ff', true);
-  createChart('chartAnalyticsSolar',     'Solar (W)',        '#ffdd00', true);
-  createChart('chartAnalyticsVibration', 'Vibration (g)',    '#ff8844', true);
+  // Analytics page charts (larger)
+  _makeChart('chartVoltage', 'Voltage (V)', '#4488ff');
+  _makeChart('chartCurrent', 'Current (A)', '#44ffaa');
+  _makeChart('chartPower', 'Power (kW)', '#ffaa44');
+  _makeChart('chartTemp', 'Temperature (Â°C)', '#ff4444');
+  _makeChart('chartVibration', 'Vibration (mm/s)', '#aa44ff');
+  _makeChart('chartLoading', 'Loading (%)', '#ffdd00');
+  _makeChart('chartSolar', 'Solar (W)', '#ffee00');
 
-  // Subscribe to state changes for live updates
-  subscribe('*', (state) => updateCharts(state));
+  subscribe('*', updateCharts);
 }
 
-/**
- * Push the latest sensor/load values from state into all charts.
- * Called from the state subscription or directly.
- * @param {object} state  Full application state snapshot
- */
 export function updateCharts(state) {
   if (!window.Chart) return;
 
-  const s   = state.sensors || {};
-  const lo  = state.loads   || {};
-  const sol = state.solar   || {};
+  const transformer = state.transformer || {};
+  const solar = state.solar || {};
+  const ev = state.ev || {};
 
-  // Mini dashboard charts
-  pushPoint('chartVoltage',   s.voltage);
-  pushPoint('chartCurrent',   s.current);
-  pushPoint('chartPower',     s.power);
-  pushPoint('chartTemp',      s.temperature);
-  pushPoint('chartLoading',   state.loading?.percentage);
-  pushPoint('chartSolar',     sol.power);
-  pushPoint('chartEV',        lo.ev?.power);
-  pushPoint('chartVibration', s.vibration);
+  const timeLabel = nowLabel();
 
-  // Analytics charts â€” independent series, same values
-  pushPoint('chartAnalyticsVoltage',   s.voltage);
-  pushPoint('chartAnalyticsCurrent',   s.current);
-  pushPoint('chartAnalyticsPower',     s.power);
-  pushPoint('chartAnalyticsTemp',      s.temperature);
-  pushPoint('chartAnalyticsEV',        lo.ev?.power);
-  pushPoint('chartAnalyticsSolar',     sol.power);
-  pushPoint('chartAnalyticsVibration', s.vibration);
+  const updates = [
+    // Dashboard
+    { id: 'chart-voltage', val: transformer.voltage },
+    { id: 'chart-current', val: transformer.current },
+    { id: 'chart-power', val: transformer.power },
+    { id: 'chart-temp', val: transformer.temperature },
+    { id: 'chart-vibration', val: transformer.vibration },
+    { id: 'chart-loading', val: transformer.loading },
+    { id: 'chart-solar', val: solar.power },
+    { id: 'chart-ev', val: ev.power },
+    
+    // Analytics
+    { id: 'chartVoltage', val: transformer.voltage },
+    { id: 'chartCurrent', val: transformer.current },
+    { id: 'chartPower', val: transformer.power },
+    { id: 'chartTemp', val: transformer.temperature },
+    { id: 'chartVibration', val: transformer.vibration },
+    { id: 'chartLoading', val: transformer.loading },
+    { id: 'chartSolar', val: solar.power }
+  ];
 
-  // Batch update â€” 'none' suppresses animation for live feed performance
-  for (const [, chart] of registry) {
+  updates.forEach(u => {
+    const chart = chartsRegistry.get(u.id);
+    if (!chart) return;
+    
+    chart.data.labels.push(timeLabel);
+    chart.data.datasets[0].data.push(u.val != null ? u.val : null);
+    
+    if (chart.data.labels.length > MAX_POINTS) {
+      chart.data.labels.shift();
+      chart.data.datasets[0].data.shift();
+    }
+    
     chart.update('none');
-  }
+  });
 }
 
-/**
- * Destroy all registered Chart instances (e.g., on full page teardown).
- */
 export function destroyCharts() {
-  for (const [id, chart] of registry) {
+  for (const [id, chart] of chartsRegistry) {
     chart.destroy();
-    registry.delete(id);
   }
+  chartsRegistry.clear();
 }

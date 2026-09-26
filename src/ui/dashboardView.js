@@ -1,248 +1,246 @@
-﻿/**
- * dashboardView.js â€” UNITWIN GRID V2
- * Drives all DOM updates on the main Dashboard page.
+/**
+ * dashboardView.js — UNITWIN GRID V2
+ * Subscribes to all state changes and updates all dashboard DOM elements.
+ * Fixed field paths: state.transformer, state.solar, state.ev, state.household, state.health, state.predicted
  */
 
 import { subscribe } from '../core/state.js';
 
-// ---------------------------------------------------------------------------
-// DOM helpers
-// ---------------------------------------------------------------------------
-
 function el(id) { return document.getElementById(id); }
 
-function setText(id, text) {
-  const node = el(id);
-  if (node) node.textContent = text ?? 'â€”';
-}
-
-function setStyle(id, prop, value) {
-  const node = el(id);
-  if (node) node.style[prop] = value;
-}
-
-// ---------------------------------------------------------------------------
-// animateNumber â€” smoothly transitions displayed number over 300 ms
-// ---------------------------------------------------------------------------
-
-/**
- * Animate a numeric display from its current rendered value to target.
- * @param {HTMLElement|null} node
- * @param {number} value
- * @param {number} [decimals=2]
- */
 export function animateNumber(node, value, decimals = 2) {
   if (!node) return;
-  const start    = parseFloat(node.textContent) || 0;
-  const end      = Number(value);
-  const duration = 300;
-  const t0       = performance.now();
-
+  const start = parseFloat(node.textContent) || 0;
+  const end   = Number(value);
+  const t0    = performance.now();
   function step(ts) {
-    const progress = Math.min((ts - t0) / duration, 1);
-    const ease     = 1 - Math.pow(1 - progress, 3); // cubic ease-out
+    const p    = Math.min((ts - t0) / 300, 1);
+    const ease = 1 - Math.pow(1 - p, 3);
     node.textContent = (start + (end - start) * ease).toFixed(decimals);
-    if (progress < 1) requestAnimationFrame(step);
+    if (p < 1) requestAnimationFrame(step);
   }
   requestAnimationFrame(step);
 }
 
-// ---------------------------------------------------------------------------
-// setSourceTag â€” toggle live / simulation badge
-// ---------------------------------------------------------------------------
-
-/**
- * Apply src-live or src-simulation class and label text to an element.
- * @param {HTMLElement|null} node
- * @param {'LIVE'|'SIMULATION'|string} mode
- */
 export function setSourceTag(node, mode) {
   if (!node) return;
-  const isLive = mode === 'LIVE';
-  node.classList.toggle('src-live',       isLive);
-  node.classList.toggle('src-simulation', !isLive);
-  node.textContent = isLive ? 'LIVE' : 'SIM';
+  node.className = 'src-tag ' + (mode === 'LIVE' ? 'src-live' : 'src-simulation');
+  node.textContent = mode;
 }
-
-// ---------------------------------------------------------------------------
-// Connectivity dot helper
-// ---------------------------------------------------------------------------
-
-function setConnDot(id, connected) {
-  const node = el(id);
-  if (!node) return;
-  node.classList.toggle('conn-dot--online',  !!connected);
-  node.classList.toggle('conn-dot--offline', !connected);
-}
-
-// ---------------------------------------------------------------------------
-// Time formatter
-// ---------------------------------------------------------------------------
-
-function fmtTime(date) {
-  return [
-    String(date.getHours()).padStart(2, '0'),
-    String(date.getMinutes()).padStart(2, '0'),
-    String(date.getSeconds()).padStart(2, '0'),
-  ].join(':');
-}
-
-// ---------------------------------------------------------------------------
-// Main state â†’ DOM application
-// ---------------------------------------------------------------------------
 
 function applyState(state) {
-  const s      = state.sensors       || {};
-  const lo     = state.loads         || {};
-  const sol    = state.solar         || {};
-  const ev     = lo.ev               || {};
-  const hh     = lo.household        || {};
-  const batt   = lo.battery          || {};
-  const hlth   = state.health        || {};
-  const load   = state.loading       || {};
-  const intel  = state.intelligence  || {};
-  const conn   = state.connectivity  || {};
-  const cfg    = state.config        || {};
+  try {
+    const tx      = state.transformer || {};
+    const solar   = state.solar       || {};
+    const ev      = state.ev          || {};
+    const hh      = state.household   || {};
+    const health  = state.health      || {};
+    const intel   = state.intelligence|| {};
+    const pred    = state.predicted   || {};
+    const conn    = state.connectivity|| {};
 
-  // â”€â”€ Primary transformer sensors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  animateNumber(el('txVoltage'),   s.voltage,      1);
-  animateNumber(el('txCurrent'),   s.current,      2);
-  animateNumber(el('txPower'),     s.power,        0);
-  animateNumber(el('txTemp'),      s.temperature,  1);
-  animateNumber(el('txVibration'), s.vibration,    3);
-  animateNumber(el('txFreq'),      s.frequency,    2);
-  animateNumber(el('txPF'),        s.powerFactor,  3);
+    // ── Transformer telemetry ────────────────────────────────
+    if (el('txVoltage')   && tx.voltage   != null) el('txVoltage').textContent   = tx.voltage.toFixed(2)   + ' V';
+    if (el('txCurrent')   && tx.current   != null) el('txCurrent').textContent   = tx.current.toFixed(3)   + ' A';
+    if (el('txPower')     && tx.power     != null) el('txPower').textContent     = tx.power.toFixed(2)     + ' kW';
+    if (el('txTemp')      && tx.temperature!= null) el('txTemp').textContent     = tx.temperature.toFixed(1)+ ' \xb0C';
+    if (el('txVibration') && tx.vibration != null) el('txVibration').textContent = tx.vibration.toFixed(3) + ' mm/s';
+    if (el('txFreq')      && tx.frequency != null) el('txFreq').textContent      = tx.frequency.toFixed(1) + ' Hz';
+    if (el('txPF')        && tx.powerFactor!= null) el('txPF').textContent       = tx.powerFactor.toFixed(2);
 
-  // Transformer state badge
-  const stateNode = el('txState');
-  if (stateNode) {
-    stateNode.textContent = state.transformerState ?? 'â€”';
-    stateNode.className   = 'badge badge--' +
-      (state.transformerState ?? 'unknown').toLowerCase().replace(/\s+/g, '-');
+    const txStateEl = el('txState');
+    if (txStateEl && tx.state) {
+      txStateEl.textContent = tx.state;
+      txStateEl.className = 'state-badge ' + (
+        tx.state === 'CRITICAL' ? 'state-critical' :
+        tx.state === 'WARNING'  ? 'state-warning'  : 'state-normal'
+      );
+    }
+    if (el('txSource')) el('txSource').textContent = (tx.sources?.voltage) || state.mode || '\u2014';
+
+    // ── Loading arc/ring (r=52, circumference=326.73) ────────
+    const loadPct   = tx.loading || 0;
+    const ARC_CIRC  = 326.73;
+    const arcOffset = ARC_CIRC - (Math.min(100, Math.max(0, loadPct)) / 100) * ARC_CIRC;
+    const arcEl     = el('loadingArc');
+    if (arcEl) {
+      arcEl.style.strokeDashoffset = arcOffset.toFixed(2);
+      arcEl.style.stroke = loadPct >= 90 ? '#ff4455' :
+                           loadPct >= 75 ? '#ff6600' :
+                           loadPct >= 50 ? '#ffaa00' : '#00d68f';
+    }
+    if (el('loadingPct'))   el('loadingPct').textContent   = loadPct.toFixed(1) + '%';
+    if (el('loadingValue')) el('loadingValue').textContent = loadPct.toFixed(1) + '%';
+    if (el('loadingState')) el('loadingState').textContent = intel.state || '\u2014';
+    if (el('loadingPct2'))  el('loadingPct2').textContent  = loadPct.toFixed(1) + '%';
+    const lsb = el('loadingStateBadge');
+    if (lsb) {
+      lsb.textContent = intel.state || '\u2014';
+      lsb.className = 'state-badge ' + (loadPct>=90?'state-critical':loadPct>=75?'state-warning':'state-normal');
+    }
+
+    // ── Bottom sparkline value labels ────────────────────────
+    if (el('sensorTxVoltage')) el('sensorTxVoltage').textContent = (tx.voltage ?? 0).toFixed(2);
+    if (el('sensorTxCurrent')) el('sensorTxCurrent').textContent = (tx.current ?? 0).toFixed(3);
+    if (el('sensorTxPower'))   el('sensorTxPower').textContent   = (tx.power   ?? 0).toFixed(2);
+    if (el('sensorTxTemp'))    el('sensorTxTemp').textContent    = (tx.temperature ?? 0).toFixed(1);
+    if (el('sensorLoading'))   el('sensorLoading').textContent   = (tx.loading ?? 0).toFixed(1);
+
+    // ── Solar ────────────────────────────────────────────────
+    const solarW   = solar.power || 0;
+    const solarKW  = solarW / 1000;
+    const solarPct = Math.min(100, Math.max(0, (solarW / 1200) * 100));
+    if (el('solarStatus'))  el('solarStatus').textContent  = solar.status || '\u2014';
+    if (el('solarState'))   el('solarState').textContent   = solar.status || '\u2014';
+    if (el('solarPower'))   el('solarPower').textContent   = solarKW.toFixed(3) + ' kW';
+    if (el('solarVoltage')) el('solarVoltage').textContent = (solar.voltage ?? 0).toFixed(2) + ' V';
+    if (el('solarCurrent')) el('solarCurrent').textContent = (solar.current ?? 0).toFixed(3) + ' A';
+    if (el('solarBar'))     el('solarBar').style.width     = solarPct.toFixed(1) + '%';
+
+    // ── EV ───────────────────────────────────────────────────
+    const evBadge = el('evStatusBadge');
+    if (evBadge) {
+      evBadge.textContent = ev.status || '\u2014';
+      evBadge.className   = ev.status === 'CHARGING' ? 'status-pill pill-active' : 'status-pill pill-idle';
+    }
+    if (el('evPower')) el('evPower').textContent = (ev.power ?? 0).toFixed(2) + ' kW';
+    if (el('evMode'))  el('evMode').textContent  = ev.mode || ev.level || '\u2014';
+    const batt = typeof ev.battery === 'number' ? ev.battery : 62;
+    if (el('battBar')) el('battBar').style.width = Math.min(100, batt).toFixed(0) + '%';
+    if (el('battPct')) el('battPct').textContent = batt + '%';
+
+    // ── Household ────────────────────────────────────────────
+    const hhBadge = el('hhStatusBadge');
+    if (hhBadge) hhBadge.textContent = hh.status || 'ON';
+    if (el('hhPower')) el('hhPower').textContent = (hh.power ?? 0).toFixed(2) + ' kW';
+
+    // ── Energy flow diagram (page-energyflow) ────────────────
+    if (el('flowSolarW'))  el('flowSolarW').textContent  = solarKW.toFixed(3) + ' kW';
+    if (el('flowTxLoad'))  el('flowTxLoad').textContent  = 'Loading: ' + loadPct.toFixed(1) + '%';
+    if (el('flowHHW'))     el('flowHHW').textContent     = (hh.power ?? 0).toFixed(2) + ' kW';
+    if (el('flowEVW'))     el('flowEVW').textContent     = (ev.power ?? 0).toFixed(2) + ' kW';
+
+    // ── Health ring (id='healthScoreRing', r=44, circ=276.46) ─
+    const hScore  = health.score || 0;
+    const H_CIRC  = 276.46;
+    const hOffset = H_CIRC - (Math.min(100, Math.max(0, hScore)) / 100) * H_CIRC;
+    const hRing   = el('healthScoreRing') || el('healthRing');
+    if (hRing) {
+      hRing.style.strokeDashoffset = hOffset.toFixed(2);
+      hRing.style.stroke = hScore>=85?'#00d68f':hScore>=70?'#ffaa00':hScore>=50?'#ff6600':'#ff4455';
+    }
+    if (el('healthScore')) el('healthScore').textContent = hScore.toFixed(0);
+    if (el('healthLabel')) el('healthLabel').textContent = health.label || '\u2014';
+
+    // Factor bars
+    const FACTORS = [
+      ['factor_loading',     'factorLabel_loading',     health.factors?.loading],
+      ['factor_temperature', 'factorLabel_temperature', health.factors?.temperature],
+      ['factor_voltage',     'factorLabel_voltage',     health.factors?.voltage],
+      ['factor_vibration',   'factorLabel_vibration',   health.factors?.vibration]
+    ];
+    FACTORS.forEach(([barId, lblId, f]) => {
+      const bar = el(barId); const lbl = el(lblId);
+      if (bar && f) {
+        bar.style.width = Math.min(100, f.score||0).toFixed(1) + '%';
+        bar.style.background = (f.score||0)>=85?'var(--accent-green)':(f.score||0)>=70?'var(--accent-amber)':'var(--accent-red)';
+      }
+      if (lbl && f) lbl.textContent = f.label || '\u2014';
+    });
+
+    // ── Intelligence ─────────────────────────────────────────
+    if (el('intelState'))           el('intelState').textContent           = intel.state           || '\u2014';
+    if (el('intelThermal'))         el('intelThermal').textContent         = intel.thermal         || '\u2014';
+    if (el('intelVibration'))       el('intelVibration').textContent       = intel.vibration       || '\u2014';
+    if (el('intelEVImpact'))        el('intelEVImpact').textContent        = intel.evImpact        || '\u2014';
+    if (el('intelRec'))             el('intelRec').textContent             = intel.recommendation  || '\u2014';
+    if (el('intelRecommendation'))  el('intelRecommendation').textContent  = intel.recommendation  || '\u2014';
+    const causeList = el('causeEffectList');
+    if (causeList && Array.isArray(intel.causeEffect)) {
+      causeList.innerHTML = intel.causeEffect.length === 0
+        ? '<li style="color:var(--text-dim);font-size:0.7rem;">No active cause-effect factors.</li>'
+        : intel.causeEffect.map(item =>
+            `<li><span style="color:var(--accent-amber);">${item.cause ?? item}</span>` +
+            (item.effect ? `<br><span style="color:var(--text-dim);font-size:0.68rem;">&#x2192; ${item.effect}</span>` : '') +
+            `</li>`).join('');
+    }
+
+    // ── Monitoring page sensors ───────────────────────────────
+    if (el('sensorTxTemp2'))       el('sensorTxTemp2').textContent       = (tx.temperature??0).toFixed(1);
+    if (el('sensorVibration2'))    el('sensorVibration2').textContent    = (tx.vibration??0).toFixed(3);
+    if (el('sensorSolarVoltage2')) el('sensorSolarVoltage2').textContent = (solar.voltage??0).toFixed(2);
+    if (el('sensorSolarCurrent2')) el('sensorSolarCurrent2').textContent = (solar.current??0).toFixed(3);
+    if (el('sensorSolarPower2'))   el('sensorSolarPower2').textContent   = solarW.toFixed(2);
+    if (el('sensorAmbTemp2'))      el('sensorAmbTemp2').textContent      = (state.ambient?.temperature??0).toFixed(1);
+    if (el('sensorHumidity2'))     el('sensorHumidity2').textContent     = (state.ambient?.humidity??0).toFixed(0);
+    if (el('sensorTxVoltage2'))    el('sensorTxVoltage2').textContent    = (tx.voltage??0).toFixed(2);
+    if (el('sensorTxCurrent2'))    el('sensorTxCurrent2').textContent    = (tx.current??0).toFixed(3);
+    if (el('sensorTxPower2'))      el('sensorTxPower2').textContent      = (tx.power??0).toFixed(2);
+    if (el('sensorEVLoad2'))       el('sensorEVLoad2').textContent       = (ev.power??0).toFixed(2);
+    if (el('sensorHHLoad2'))       el('sensorHHLoad2').textContent       = (hh.power??0).toFixed(2);
+
+    // ── Forecast / Prediction panel ───────────────────────────
+    if (el('predictLoading'))      el('predictLoading').textContent      = pred.loading!=null      ? pred.loading.toFixed(1)+'%'     : '\u2014';
+    if (el('predictTemp'))         el('predictTemp').textContent         = pred.temperature!=null  ? pred.temperature.toFixed(1)+' \xb0C' : '\u2014';
+    if (el('predictRec'))          el('predictRec').textContent          = pred.recommendation     || 'Collecting measurements\u2026';
+    if (el('predictRecommendation')) el('predictRecommendation').textContent = pred.recommendation || '';
+    if (el('predictTimeThreshold')) {
+      const ttt = pred.timeToThreshold;
+      if (ttt == null)  el('predictTimeThreshold').textContent = '\u2014';
+      else if (ttt===0) el('predictTimeThreshold').textContent = 'NOW';
+      else {
+        const m = Math.floor(ttt/60), s = ttt % 60;
+        el('predictTimeThreshold').textContent = m>0 ? `${m}m ${s}s` : `${s}s`;
+      }
+    }
+    const riskBadge = el('predictRiskBadge');
+    if (riskBadge) {
+      const risk = pred.risk || 'UNKNOWN';
+      riskBadge.textContent = risk;
+      riskBadge.className = 'forecast-risk-badge state-badge ' + (
+        risk==='CRITICAL' ? 'state-critical risk-critical' :
+        risk==='HIGH'     ? 'state-warning  risk-high'     :
+        risk==='MEDIUM'   ? 'state-moderate risk-medium'   : 'state-normal risk-low'
+      );
+    }
+
+    // ── Connectivity indicators ───────────────────────────────
+    const dot = (id, val) => { const n=el(id); if(n) n.className='conn-dot '+(val?'conn-on':'conn-off'); };
+    dot('connESP32',    conn.esp32);
+    dot('connDatabase', conn.database);
+    dot('connSensor',   conn.sensorStream);
+    dot('connTwin',     conn.twinSync ?? true);
+    dot('connESP32b',   conn.esp32);
+    dot('connDatabaseb',conn.database);
+    dot('connSensorb',  conn.sensorStream);
+    dot('connTwinb',    conn.twinSync ?? true);
+    if (conn.lastUpdate) {
+      const d = new Date(conn.lastUpdate);
+      if (!isNaN(d.getTime())) {
+        const str = [d.getHours(), d.getMinutes(), d.getSeconds()].map(n=>String(n).padStart(2,'0')).join(':');
+        if (el('lastUpdate'))  el('lastUpdate').textContent  = str;
+        if (el('lastUpdateb')) el('lastUpdateb').textContent = str;
+      }
+    }
+
+    // ── Mode indicator ────────────────────────────────────────
+    const modeEl = el('modeIndicator');
+    if (modeEl) {
+      modeEl.innerHTML = state.mode === 'LIVE'
+        ? '<span class="mode-live">\u25c9 LIVE</span>'
+        : '<span class="mode-sim">\u25c9 SIMULATION</span>';
+    }
+    const monitorBadge = el('monitoringModeBadge');
+    if (monitorBadge) {
+      monitorBadge.textContent = state.mode === 'LIVE' ? '\u25c9 LIVE' : '\u25c9 SIMULATION';
+      monitorBadge.className   = 'status-pill ' + (state.mode==='LIVE'?'pill-active':'pill-idle');
+    }
+
+  } catch (err) {
+    console.error('[dashboardView] State apply error:', err);
   }
-
-  // â”€â”€ Summary badges â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const badgeLoad  = el('txBadgeLoad');
-  const badgeSolar = el('txBadgeSolar');
-  const badgeEV    = el('txBadgeEV');
-
-  if (badgeLoad)  badgeLoad.textContent  = load.percentage != null ? load.percentage.toFixed(1) + ' %' : 'â€”';
-  if (badgeSolar) badgeSolar.textContent = sol.power       != null ? sol.power.toFixed(0)        + ' W' : 'â€”';
-  if (badgeEV)    badgeEV.textContent    = ev.power        != null ? ev.power.toFixed(0)         + ' W' : 'â€”';
-
-  // â”€â”€ Solar panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  setText('solarPower',   sol.power   != null ? sol.power.toFixed(0)   + ' W' : 'â€”');
-  setText('solarVoltage', sol.voltage != null ? sol.voltage.toFixed(1) + ' V' : 'â€”');
-  setText('solarCurrent', sol.current != null ? sol.current.toFixed(2) + ' A' : 'â€”');
-  setText('solarStatus',  sol.status ?? 'â€”');
-
-  const solarCapacity = cfg.solarCapacity || 5000;
-  const solarPct      = Math.min(100, Math.max(0, ((sol.power || 0) / solarCapacity) * 100));
-  setStyle('solarBar', 'width', solarPct.toFixed(1) + '%');
-
-  // â”€â”€ EV panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  setText('evPower', ev.power != null ? ev.power.toFixed(0) + ' W' : 'â€”');
-
-  const evBadge = el('evStatusBadge');
-  if (evBadge) {
-    evBadge.textContent = ev.status ?? 'â€”';
-    evBadge.className   = 'badge badge--' + (ev.status ?? 'offline').toLowerCase();
-  }
-
-  const battPct = batt.percentage ?? 0;
-  setText('battPct', battPct.toFixed(0) + ' %');
-  setStyle('battBar', 'width', Math.min(100, battPct).toFixed(1) + '%');
-
-  // â”€â”€ Household panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  setText('hhPower', hh.power != null ? hh.power.toFixed(0) + ' W' : 'â€”');
-
-  const hhBadge = el('hhStatusBadge');
-  if (hhBadge) {
-    hhBadge.textContent = hh.status ?? 'â€”';
-    hhBadge.className   = 'badge badge--' + (hh.status ?? 'offline').toLowerCase();
-  }
-
-  // â”€â”€ Health score ring â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const score = hlth.score ?? 100;
-  setText('healthScore', score.toFixed(0));
-  setText('healthLabel', hlth.label ?? 'Good');
-
-  // SVG circle circumference for r=45 â†’ C = 2Ï€Ã—45 â‰ˆ 282.7
-  const CIRC   = 282.7;
-  const offset = CIRC - (Math.min(100, Math.max(0, score)) / 100) * CIRC;
-  const ringNode = el('healthScoreRing');
-  if (ringNode) {
-    ringNode.style.strokeDasharray  = `${CIRC}`;
-    ringNode.style.strokeDashoffset = offset.toFixed(2);
-  }
-
-  // â”€â”€ Loading percentage / arc â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const loadPct = load.percentage ?? 0;
-  setText('loadingPct',   loadPct.toFixed(1) + '%');
-  setText('loadingState', load.state ?? 'â€”');
-
-  const arcNode = el('loadingArc');
-  if (arcNode) {
-    const ARC_LEN = 220;
-    arcNode.style.strokeDasharray = `${((loadPct / 100) * ARC_LEN).toFixed(2)} ${ARC_LEN}`;
-  }
-
-  // â”€â”€ Intelligence factor bars â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const factors = intel.factors || {};
-  const factorIds = {
-    factor_loading:     factors.loading,
-    factor_temperature: factors.temperature,
-    factor_voltage:     factors.voltage,
-    factor_vibration:   factors.vibration,
-  };
-  for (const [id, val] of Object.entries(factorIds)) {
-    setStyle(id, 'width', Math.min(100, Math.max(0, val ?? 0)).toFixed(1) + '%');
-  }
-
-  // â”€â”€ Intelligence text â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  setText('intelState',     intel.state             ?? 'â€”');
-  setText('intelEVImpact',  intel.evImpact          ?? 'â€”');
-  setText('intelThermal',   intel.thermal           ?? 'â€”');
-  setText('intelVibration', intel.vibration         ?? 'â€”');
-  setText('intelRec',       intel.recommendation    ?? 'â€”');
-
-  // â”€â”€ Connectivity dots â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  setConnDot('connESP32',    conn.esp32);
-  setConnDot('connDatabase', conn.database);
-  setConnDot('connSensor',   conn.sensor);
-  setConnDot('connTwin',     conn.twin);
-
-  // â”€â”€ Last update / mode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const ts = state.lastUpdate ? new Date(state.lastUpdate) : new Date();
-  setText('lastUpdate', fmtTime(ts));
-
-  const modeNode = el('modeIndicator');
-  if (modeNode) {
-    modeNode.textContent = state.mode ?? 'SIMULATION';
-    modeNode.className   = 'mode-indicator mode--' + (state.mode ?? 'simulation').toLowerCase();
-  }
-
-  // â”€â”€ Source tags (any element with data-source-tag attribute) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  document.querySelectorAll('[data-source-tag]').forEach((node) => {
-    setSourceTag(node, state.mode);
-  });
-
-  // â”€â”€ Bottom status bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  setText('sensorTxVoltage', s.voltage      != null ? s.voltage.toFixed(1)      + ' V'  : 'â€”');
-  setText('sensorTxCurrent', s.current      != null ? s.current.toFixed(2)      + ' A'  : 'â€”');
-  setText('sensorTxPower',   s.power        != null ? s.power.toFixed(0)        + ' W'  : 'â€”');
-  setText('sensorTxTemp',    s.temperature  != null ? s.temperature.toFixed(1)  + ' Â°C' : 'â€”');
-  setText('sensorLoading',   loadPct.toFixed(1) + '%');
 }
 
-// ---------------------------------------------------------------------------
-// Init
-// ---------------------------------------------------------------------------
-
-/**
- * Initialise the Dashboard view.
- * Subscribes to all state changes and renders on every update.
- */
 export function initDashboardView() {
-  subscribe('*', (state) => applyState(state));
+  subscribe('*', applyState);
 }

@@ -112,6 +112,15 @@ const _defaultState = {
     viewMode:     'STANDARD',   // STANDARD | THERMAL | ENERGY | SENSOR | EXPLODED
     selectedPart: null,
     camera:       'overview'
+  },
+
+  predicted: {
+    loading: null,
+    temperature: null,
+    risk: 'UNKNOWN',
+    timeToThreshold: null,
+    recommendation: null,
+    confidence: 0
   }
 };
 
@@ -151,7 +160,7 @@ function _patch(section, data) {
 }
 
 // ── History recording ──────────────────────────────────────────
-const MAX_HISTORY = CONFIG.performance.chartMaxPoints;
+const MAX_HISTORY = CONFIG.performance?.chartMaxPoints || 100;
 function _recordHistory() {
   const h = _state.dataHistory;
   const tx = _state.transformer;
@@ -192,7 +201,7 @@ function _computeTransformerDerived() {
   else tx.state = 'NORMAL';
 
   // Thermal alarm (matches hardware: LED alarm at 35°C)
-  tx.alarm = temp >= CONFIG.transformer.alarmTemperature;
+  tx.alarm = temp >= (CONFIG.transformer?.alarmTemperature || 80);
 }
 
 // ── Solar Update ───────────────────────────────────────────────
@@ -237,6 +246,12 @@ export function setIntelligence(data) {
   _emit(['intelligence']);
 }
 
+// ── Forecast ───────────────────────────────────────────────────
+export function setForecast(data) {
+  _patch('predicted', data);
+  _emit(['predicted']);
+}
+
 // ── Twin View Mode ─────────────────────────────────────────────
 export function setTwinViewMode(mode) {
   _state.twin.viewMode = mode;
@@ -250,13 +265,26 @@ export function setTwinSelectedPart(part) {
 
 // ── Alerts ─────────────────────────────────────────────────────
 let _alertIdCounter = 0;
-export function addAlert(severity, message, source = 'SYSTEM') {
+export function addAlert(severityOrObj, message, source = 'SYSTEM') {
+  let severity, msg, src, timestamp;
+  if (typeof severityOrObj === 'object' && severityOrObj !== null) {
+    severity = severityOrObj.severity;
+    msg = severityOrObj.message;
+    src = severityOrObj.source || 'SYSTEM';
+    timestamp = severityOrObj.timestamp || Date.now();
+  } else {
+    severity = severityOrObj;
+    msg = message;
+    src = source;
+    timestamp = Date.now();
+  }
+  
   const alert = {
     id:        ++_alertIdCounter,
-    severity,
-    message,
-    source,
-    timestamp: Date.now(),
+    severity:  severity,
+    message:   msg,
+    source:    src,
+    timestamp: timestamp,
     status:    'ACTIVE'
   };
   _state.alerts = [alert, ..._state.alerts].slice(0, 100);

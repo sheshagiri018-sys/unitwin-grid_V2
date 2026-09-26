@@ -473,3 +473,161 @@ kbd { background: var(--bg-card); border: 1px solid var(--border-bright); paddin
   .sensor-grid { grid-template-columns: 1fr 1fr; }
   .panel-section { padding: 0.6rem; }
 }
+
+/* ── Forecast Panel ───────────────────────────────────────── */
+.forecast-panel {
+  border-left: 2px solid rgba(0, 216, 240, 0.25);
+}
+.forecast-risk-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+.forecast-risk-label {
+  font-size: 0.62rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.forecast-risk-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+.forecast-risk-badge.risk-low,
+.forecast-risk-badge.state-normal   { background: rgba(0,214,143,0.15); color: var(--accent-green); border-color: rgba(0,214,143,0.3); }
+.forecast-risk-badge.risk-medium,
+.forecast-risk-badge.state-moderate { background: rgba(255,170,0,0.12); color: var(--accent-amber); border-color: rgba(255,170,0,0.3); }
+.forecast-risk-badge.risk-high,
+.forecast-risk-badge.state-warning  { background: rgba(255,100,50,0.15); color: #ff8855; border-color: rgba(255,100,50,0.3); }
+.forecast-risk-badge.risk-critical,
+.forecast-risk-badge.state-critical { background: rgba(255,68,85,0.2);  color: var(--accent-red); border-color: rgba(255,68,85,0.4); animation: pulse-dot 1s ease infinite; }
+.forecast-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(30,60,100,0.2);
+  font-size: 0.7rem;
+}
+.forecast-label {
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.62rem;
+}
+.forecast-value {
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  font-size: 0.75rem;
+}
+.forecast-rec {
+  margin-top: 0.5rem;
+  font-size: 0.63rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  font-style: italic;
+  padding: 0.4rem 0.5rem;
+  background: rgba(0,216,240,0.04);
+  border-radius: 3px;
+  border-left: 2px solid rgba(0,216,240,0.2);
+}
+
+/* ── Health Ring SVG (fixed dashoffset calc) ─────────────── */
+.health-ring-val {
+  fill: none;
+  stroke-width: 7;
+  stroke-linecap: round;
+  /* circumference = 2π × 44 = 276.46 */
+  stroke-dasharray: 276.46;
+  stroke-dashoffset: 0;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  transition: stroke-dashoffset 0.6s ease, stroke 0.6s ease;
+}
+.health-ring-bg {
+  fill: none;
+  stroke: rgba(30,60,100,0.35);
+  stroke-width: 7;
+}
+
+/* ── Loading Arc SVG (fixed) ─────────────────────────────── */
+.loading-arc-val {
+  fill: none;
+  stroke-width: 8;
+  stroke-linecap: round;
+  /* circumference = 2π × 52 = 326.73 */
+  stroke-dasharray: 326.73;
+  stroke-dashoffset: 0;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  transition: stroke-dashoffset 0.6s ease, stroke 0.6s ease;
+}
+.loading-arc-bg {
+  fill: none;
+  stroke: rgba(30,60,100,0.35);
+  stroke-width: 8;
+}
+
+/* ── Scenario banner (injected by JS) ────────────────────── */
+#scenarioBanner {
+  font-family: var(--font-mono);
+  letter-spacing: 0.1em;
+  box-shadow: 0 4px 20px rgba(0,216,240,0.15);
+}
+
+/* ── Twin overlay badges ─────────────────────────────────── */
+.twin-badge {
+  position: absolute;
+  background: rgba(4,9,15,0.88);
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+  z-index: 10;
+  backdrop-filter: blur(4px);
+}
+.twin-badge-title {
+  font-size: 0.55rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.twin-badge-value {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent-cyan);
+}
+
+/* ── Camera control bar ──────────────────────────────────── */
+.cam-btn {
+  font-size: 0.62rem;
+  padding: 3px 8px;
+  border: 1px solid var(--border-bright);
+  background: rgba(4,9,15,0.7);
+  color: var(--text-secondary);
+  border-radius: var(--radius);
+  transition: all 0.15s;
+}
+.cam-btn:hover {
+  background: var(--accent-blue);
+  color: white;
+  border-color: var(--accent-blue);
+}
+
+/* ── Alert badge in sidebar ──────────────────────────────── */
+#alertBadge {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--accent-red);
+}
+
+/* ── View mode active glow ───────────────────────────────── */
+.view-mode-btn.active {
+  background: var(--accent-cyan);
+  color: var(--bg-deep);
+  box-shadow: 0 0 8px rgba(0,216,240,0.4);
+}

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ruleEngine.js
  * Cause-and-effect rule evaluation engine for UNITWIN GRID V2.
  *
@@ -39,7 +39,8 @@ function _fireAlert(severity, message, source) {
 
   if (now - lastFired >= ALERT_COOLDOWN_MS) {
     _alertCooldowns.set(key, now);
-    addAlert({ severity, message, source, timestamp: now });
+    // FIX: positional args
+    addAlert(severity, message, source);
   }
 }
 
@@ -51,29 +52,30 @@ function _fireAlert(severity, message, source) {
  * Evaluate all threshold rules against the current state snapshot and
  * build the intelligence payload.
  *
- * @param {object} state  Full application state snapshot from the store.
+ * @param {object} currentState  Full application state snapshot from the store.
  */
-function _evaluateRules(state) {
-  const transformer = state.transformer ?? {};
-  const ev          = state.ev          ?? {};
-  const solar       = state.solar       ?? {};
-  const household   = state.household   ?? {};
+function _evaluateRules(currentState) {
+  const transformer = currentState.transformer ?? {};
+  const ev          = currentState.ev          ?? {};
+  const solar       = currentState.solar       ?? {};
 
   const loading     = transformer.loading     ?? 0;
   const temperature = transformer.temperature ?? 28;
   const voltage     = transformer.voltage     ?? 12;
   const vibration   = transformer.vibration   ?? 0;
-  const evPowerKW   = ev.powerKW ?? 0;
+  
+  // FIX: map EV power and solar power correctly from state
+  const evPowerKW   = ev.power ?? 0;
   const ratedPowerKW = CONFIG.transformer?.ratedPower ?? 12;
 
   // ------------------------------------------------------------------
   // Loading state
   // ------------------------------------------------------------------
-  let loadingState;
+  let state;
   let recommendation;
 
   if (loading >= 90) {
-    loadingState    = 'OVERLOAD';
+    state    = 'OVERLOAD';
     recommendation  = 'Immediately reduce load. Critical transformer overload.';
     _fireAlert(
       'CRITICAL',
@@ -81,13 +83,13 @@ function _evaluateRules(state) {
       'RuleEngine'
     );
   } else if (loading >= 75) {
-    loadingState   = 'HIGH LOAD';
+    state   = 'HIGH LOAD';
     recommendation = 'Consider reducing EV or household load.';
   } else if (loading >= 50) {
-    loadingState   = 'MODERATE';
+    state   = 'MODERATE';
     recommendation = 'Loading within acceptable range. Continue monitoring.';
   } else {
-    loadingState   = 'NORMAL';
+    state   = 'NORMAL';
     recommendation = 'All parameters nominal. No action required.';
   }
 
@@ -95,64 +97,70 @@ function _evaluateRules(state) {
   // Thermal state
   // ------------------------------------------------------------------
   const alarmTemp  = CONFIG.transformer?.alarmTemperature  ?? 80;
-  const warningTemp = CONFIG.transformer?.warningTemperature ?? 65;
+  // FIX: use warnTemperature (45) per instructions
+  const warningTemp = CONFIG.transformer?.warnTemperature ?? 45;
 
-  let thermalState;
+  let thermal;
 
   if (temperature >= alarmTemp) {
-    thermalState = 'ALARM';
+    thermal = 'ALARM';
     _fireAlert(
       'WARNING',
-      `Transformer temperature alarm: ${temperature.toFixed(1)} Â°C (limit ${alarmTemp} Â°C).`,
+      `Transformer temperature alarm: ${temperature.toFixed(1)} °C (limit ${alarmTemp} °C).`,
       'RuleEngine'
     );
   } else if (temperature >= warningTemp) {
-    thermalState = 'WARNING';
+    thermal = 'WARNING';
     _fireAlert(
       'WARNING',
-      `Elevated transformer temperature: ${temperature.toFixed(1)} Â°C.`,
+      `Elevated transformer temperature: ${temperature.toFixed(1)} °C.`,
       'RuleEngine'
     );
   } else {
-    thermalState = 'NORMAL';
+    thermal = 'NORMAL';
   }
 
   // ------------------------------------------------------------------
   // Vibration state
   // ------------------------------------------------------------------
-  let vibrationState;
+  let vibrationStatus;
 
   if (vibration > 0.5) {
-    vibrationState = 'ELEVATED';
+    vibrationStatus = 'ELEVATED';
     _fireAlert(
       'WARNING',
       `Elevated vibration detected: ${vibration.toFixed(3)} mm/s RMS.`,
       'RuleEngine'
     );
   } else if (vibration > 0.3) {
-    vibrationState = 'MODERATE';
+    vibrationStatus = 'MODERATE';
   } else {
-    vibrationState = 'NORMAL';
+    vibrationStatus = 'NORMAL';
   }
 
   // ------------------------------------------------------------------
-  // Causeâ€“effect analysis
+  // Cause–effect analysis
   // ------------------------------------------------------------------
   const causeEffect = [];
+  let evImpactStr = '+0%';
 
   if (evPowerKW > 0) {
+    // FIX: EV impact calculation
     const evImpact = parseFloat(((evPowerKW / ratedPowerKW) * 100).toFixed(1));
+    evImpactStr = `+${evImpact}%`;
     causeEffect.push({
       cause: `EV charging (${evPowerKW.toFixed(1)} kW)`,
       effect: `+${evImpact}% transformer loading, elevated temperature and vibration.`,
     });
   }
 
-  if (solar.on && solar.powerKW > 0) {
-    const solarRelief = parseFloat(((solar.powerKW * 0.3 / ratedPowerKW) * 100).toFixed(1));
+  // FIX: solar.on -> solar.status === 'ACTIVE' and solar.powerKW -> solar.power / 1000
+  const solarPowerKW = (solar.power || 0) / 1000;
+  if (solar.status === 'ACTIVE' && solarPowerKW > 0) {
+    const solarRelief = parseFloat(((solarPowerKW * 0.3 / ratedPowerKW) * 100).toFixed(1));
     causeEffect.push({
-      cause: `Solar generation (${solar.powerKW?.toFixed(1)} kW)`,
-      effect: `âˆ’${solarRelief}% effective transformer loading via local offset.`,
+      cause: `Solar generation (${solarPowerKW.toFixed(1)} kW)`,
+      effect: `−${solarRelief}% effective transformer loading via local offset.`,
     });
   }
 
@@ -163,16 +171,16 @@ function _evaluateRules(state) {
     });
   }
 
-  if (vibrationState === 'ELEVATED') {
+  if (vibrationStatus === 'ELEVATED') {
     causeEffect.push({
       cause: 'Elevated mechanical vibration',
       effect: 'Risk of winding loosening, contact wear, premature failure.',
     });
   }
 
-  if (thermalState === 'ALARM') {
+  if (thermal === 'ALARM') {
     causeEffect.push({
-      cause: `Temperature alarm (${temperature.toFixed(1)} Â°C)`,
+      cause: `Temperature alarm (${temperature.toFixed(1)} °C)`,
       effect: 'Oil degradation accelerated. Immediate inspection required.',
     });
   }
@@ -180,17 +188,16 @@ function _evaluateRules(state) {
   // ------------------------------------------------------------------
   // Publish intelligence
   // ------------------------------------------------------------------
+  // FIX: correct field names matching state schema
   setIntelligence({
-    loadingState,
-    thermalState,
-    vibrationState,
-    recommendation,
-    causeEffect,
-    voltage: parseFloat(voltage.toFixed(3)),
-    loading: parseFloat(loading.toFixed(1)),
-    temperature: parseFloat(temperature.toFixed(2)),
-    vibration: parseFloat(vibration.toFixed(4)),
-    timestamp: Date.now(),
+    state: state,
+    thermal: thermal,
+    vibration: vibrationStatus,
+    evImpact: evImpactStr,
+    recommendation: recommendation,
+    causeEffect: causeEffect,
+    trendAlert: null,
+    timestamp: Date.now()
   });
 }
 

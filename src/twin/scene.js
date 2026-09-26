@@ -66,7 +66,7 @@ export function initScene(container) {
   renderer.shadowMap.enabled       = true;
   renderer.shadowMap.type          = THREE.PCFSoftShadowMap;
   renderer.toneMapping             = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure     = 1.25;
+  renderer.toneMappingExposure     = 1.45;
   renderer.outputColorSpace        = THREE.SRGBColorSpace;
   container.appendChild(renderer.domElement);
 
@@ -99,12 +99,16 @@ export function initScene(container) {
 
   // ── Lighting ──────────────────────────────────────────────
 
-  // Ambient — cool deep blue fill
-  const ambientLight = new THREE.AmbientLight(0x1a2a4a, 0.9);
+  // Sky/ground fill
+  const hemiLight = new THREE.HemisphereLight(0x4466aa, 0x0a1020, 0.7);
+  scene.add(hemiLight);
+
+  // Ambient — warm deep blue fill
+  const ambientLight = new THREE.AmbientLight(0x1e2d45, 1.2);
   scene.add(ambientLight);
 
-  // Key light — warm directional with shadow
-  const keyLight = new THREE.DirectionalLight(0xfff5e0, 2.2);
+  // Key light — warmer directional with shadow
+  const keyLight = new THREE.DirectionalLight(0xfff8f0, 2.4);
   keyLight.position.set(18, 32, 18);
   keyLight.castShadow              = true;
   keyLight.shadow.mapSize.width    = 2048;
@@ -128,6 +132,11 @@ export function initScene(container) {
   rimLight.position.set(0, 5, -20);
   scene.add(rimLight);
 
+  // Secondary warm fill point light
+  const secondaryFill = new THREE.PointLight(0xffcc88, 0.8);
+  secondaryFill.position.set(8, 6, 12);
+  scene.add(secondaryFill);
+
   // Thermal accent point light — starts at intensity 0
   thermalLight = new THREE.PointLight(0xff4400, 0, 14, 2);
   thermalLight.position.set(0, 6, 0);
@@ -136,9 +145,9 @@ export function initScene(container) {
   // ── Ground plane ──────────────────────────────────────────
   const groundGeo = new THREE.PlaneGeometry(80, 80);
   const groundMat = new THREE.MeshStandardMaterial({
-    color:     0x0a1020,
-    metalness: 0.2,
-    roughness: 0.9
+    color:     0x0d1520,
+    metalness: 0.15,
+    roughness: 0.92
   });
   const ground        = new THREE.Mesh(groundGeo, groundMat);
   ground.rotation.x   = -Math.PI / 2;
@@ -148,7 +157,7 @@ export function initScene(container) {
   scene.add(ground);
 
   // ── Grid helper ───────────────────────────────────────────
-  const grid       = new THREE.GridHelper(80, 40, 0x0d2040, 0x0a1830);
+  const grid       = new THREE.GridHelper(100, 50, 0x0d2040, 0x0a1830);
   grid.position.y  = 0.01;
   scene.add(grid);
 

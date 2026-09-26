@@ -20,6 +20,7 @@ const CRITICAL_TEMP = 70;   // °C upper bound
 let _group              = null;
 let _vibration          = 0.0;
 let _temperature        = 32.4;
+let _healthScore        = 100;
 let _thermalMode        = false;
 let _thermalOverlayMesh = null;
 let _t                  = 0;
@@ -140,9 +141,37 @@ function _buildTank(parent) {
   nameplate.position.set(0, 1.6, 1.12);
   tankGroup.add(nameplate);
 
-  // Thermal overlay mesh — same footprint as body, toggled in thermal mode
+  // Warning plate (caution diamond)
+  const warnGeo = new THREE.BoxGeometry(0.6, 0.6, 0.02);
+  const warnMat = new THREE.MeshStandardMaterial({ color: 0xffcc00, metalness: 0.4, roughness: 0.5 });
+  const warnPlate = _mesh(warnGeo, warnMat);
+  warnPlate.position.set(0, 2.8, 1.12);
+  warnPlate.rotation.z = Math.PI / 4;
+  tankGroup.add(warnPlate);
+
+  // Exclamation mark on warning plate
+  const exclGeo = new THREE.BoxGeometry(0.06, 0.25, 0.02);
+  const exclMat = new THREE.MeshStandardMaterial({ color: 0x000000 });
+  const excl = _mesh(exclGeo, exclMat);
+  excl.position.set(0, 2.8, 1.13);
+  tankGroup.add(excl);
+
+  // Conservator tank
+  const consGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.8, 10);
+  const consTank = _mesh(consGeo, MAT.tankBody);
+  consTank.rotation.z = Math.PI / 2;
+  consTank.position.set(0.8, 4.8, 0);
+  tankGroup.add(consTank);
+
+  // Pipe connecting conservator tank to top plate
+  const pipeGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.4, 6);
+  const pipe = _mesh(pipeGeo, MAT.tankBody);
+  pipe.position.set(0.8, 4.5, 0);
+  tankGroup.add(pipe);
+
+  // Thermal overlay mesh — same footprint as body, toggled in thermal mode or low health
   const overlayGeo   = new THREE.BoxGeometry(3.22, 4.22, 2.22);
-  _thermalOverlayMesh = _mesh(overlayGeo, MAT.thermalOverlay, false, false);
+  _thermalOverlayMesh = _mesh(overlayGeo, MAT.thermalOverlay.clone(), false, false);
   _thermalOverlayMesh.position.set(0, 2.1, 0);
   _thermalOverlayMesh.renderOrder = 1;
   _thermalOverlayMesh.visible     = false;
@@ -428,6 +457,12 @@ export function buildTransformer() {
     _thermalMode = state.twin.viewMode === 'THERMAL';
   });
 
+  subscribe('health', (state) => {
+    if (state.health) {
+      _healthScore = state.health.score;
+    }
+  });
+
   // ── Per-frame animation ────────────────────────────────────
   addAnimationCallback((delta) => {
     _t += delta;
@@ -437,15 +472,49 @@ export function buildTransformer() {
     _group.position.x = Math.sin(_t * 60.0) * vib;
     _group.position.z = Math.cos(_t * 47.0) * vib;
 
+    // Health-driven LED color
+    const led = _group.getObjectByName('status_led');
+    if (led) {
+      if (_healthScore >= 85) {
+        led.material.color.setHex(0x00ff44);
+        led.material.emissive.setHex(0x00ff44);
+        led.material.emissiveIntensity = 1.5;
+      } else if (_healthScore >= 70) {
+        led.material.color.setHex(0xffcc00);
+        led.material.emissive.setHex(0xffcc00);
+        led.material.emissiveIntensity = 1.8;
+      } else if (_healthScore >= 50) {
+        led.material.color.setHex(0xff6600);
+        led.material.emissive.setHex(0xff6600);
+        led.material.emissiveIntensity = 2.0 + Math.sin(_t * 10) * 1.0;
+      } else {
+        led.material.color.setHex(0xff0000);
+        led.material.emissive.setHex(0xff0000);
+        led.material.emissiveIntensity = 2.5 + Math.sin(_t * 20) * 1.5;
+      }
+    }
+
     if (_thermalMode) {
       const ratio = Math.max(0, (_temperature - NORMAL_TEMP) / (CRITICAL_TEMP - NORMAL_TEMP));
       setThermalIntensity(ratio);
       if (thermalLight) thermalLight.intensity = ratio * 3.5;
-      if (_thermalOverlayMesh) _thermalOverlayMesh.visible = true;
+      if (_thermalOverlayMesh) {
+        _thermalOverlayMesh.visible = true;
+        _thermalOverlayMesh.material.opacity = 1.0;
+        _thermalOverlayMesh.material.color.copy(MAT.thermalOverlay.color);
+      }
     } else {
       setThermalIntensity(0);
       if (thermalLight) thermalLight.intensity = 0;
-      if (_thermalOverlayMesh) _thermalOverlayMesh.visible = false;
+      if (_thermalOverlayMesh) {
+        if (_healthScore < 70) {
+          _thermalOverlayMesh.visible = true;
+          _thermalOverlayMesh.material.color.setHex(0xff6600); // Orange tint
+          _thermalOverlayMesh.material.opacity = 0.07; // Very low opacity
+        } else {
+          _thermalOverlayMesh.visible = false;
+        }
+      }
     }
   });
 
