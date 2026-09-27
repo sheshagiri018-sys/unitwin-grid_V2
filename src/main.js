@@ -50,19 +50,13 @@ import { toggleExplodedView }     from './twin/explodedView.js';
 import { moveTo, setCameraLabel } from './twin/cameraManager.js';
 import { setTwinViewMode }        from './core/state.js';
 
-// Try to import new environment file — optional (won't break if missing)
-let buildEnvironment = null;
-try {
-  const envModule = await import('./twin/environment.js');
-  buildEnvironment = envModule.buildEnvironment;
-} catch (e) {
-  console.info('[boot] Environment module not available, skipping.');
-}
-
 // ── Simulator ─────────────────────────────────────────────────
 import { activateScenario } from './simulator/scenarioManager.js';
 import { computeWhatIf }    from './simulator/whatIfEngine.js';
 
+// ──────────────────────────────────────────────────────────────
+// NOTE: environment.js is loaded dynamically INSIDE boot() to avoid
+// top-level await which would block the entire module from loading.
 // ──────────────────────────────────────────────────────────────
 
 const STEPS = [
@@ -383,15 +377,21 @@ async function boot() {
   const container = document.getElementById('threeContainer');
   if (container) {
     initScene(container);
-    try { buildTransformer(); }     catch(e) { console.warn('transformer:', e); }
-    try { buildSolarArray(); }      catch(e) { console.warn('solarArray:', e); }
-    try { buildEVCharger(); }       catch(e) { console.warn('evCharger:', e); }
-    try { buildHousehold(); }       catch(e) { console.warn('household:', e); }
-    try { if (buildEnvironment) buildEnvironment(); } catch(e) { console.warn('environment:', e); }
-    try { buildEnergyFlow(); }      catch(e) { console.warn('energyFlow:', e); }
-    try { buildSensorHotspots(); }  catch(e) { console.warn('sensorHotspots:', e); }
+    try { buildTransformer(); }    catch(e) { console.warn('transformer:', e); }
+    try { buildSolarArray(); }     catch(e) { console.warn('solarArray:', e); }
+    try { buildEVCharger(); }      catch(e) { console.warn('evCharger:', e); }
+    try { buildHousehold(); }      catch(e) { console.warn('household:', e); }
+
+    // Load environment dynamically inside boot() — safe to use await here
+    try {
+      const envModule = await import('./twin/environment.js');
+      if (envModule.buildEnvironment) envModule.buildEnvironment();
+    } catch(e) { console.info('[boot] environment.js skipped:', e.message); }
+
+    try { buildEnergyFlow(); }     catch(e) { console.warn('energyFlow:', e); }
+    try { buildSensorHotspots(); } catch(e) { console.warn('sensorHotspots:', e); }
     setSensorHotspotsVisible(false);
-    try { initInspector(); }        catch(e) { console.warn('inspector:', e); }
+    try { initInspector(); }       catch(e) { console.warn('inspector:', e); }
     setCameraLabel('overview');
     _setLoadStep(1);
   }

@@ -1,18 +1,27 @@
 /**
- * charts.js â€” UNITWIN GRID V2
+ * charts.js — UNITWIN GRID V2
+ * Creates and manages all Chart.js sparkline and analytics charts.
+ * Subscribes to transformer/solar/ev state changes only (NOT '*' would cause loop).
+ *
+ * Canvas IDs from index.html (verified):
+ * Dashboard sparklines: chartVoltage, chartCurrent, chartPower, chartTemp, chartLoading
+ * Analytics: chartAnalyticsVoltage, chartAnalyticsCurrent, chartAnalyticsPower,
+ *            chartAnalyticsTemp, chartAnalyticsEV, chartAnalyticsSolar, chartAnalyticsVibration
  */
 
 import { subscribe } from '../core/state.js';
 
 const MAX_POINTS = 60;
-const chartsRegistry = new Map();
+const _charts = new Map();
 
-function _makeChart(canvasId, label, color, yLabel='') {
+/** Create a Chart.js line chart on a canvas element. Returns null if canvas not found. */
+function _makeChart(canvasId, label, color) {
   const canvas = document.getElementById(canvasId);
-  if (!canvas) return null;
+  if (!canvas || !window.Chart) return null;
 
-  if (chartsRegistry.has(canvasId)) {
-    chartsRegistry.get(canvasId).destroy();
+  // Destroy previous instance if any
+  if (_charts.has(canvasId)) {
+    try { _charts.get(canvasId).destroy(); } catch(_) {}
   }
 
   const chart = new window.Chart(canvas, {
@@ -20,9 +29,10 @@ function _makeChart(canvasId, label, color, yLabel='') {
     data: {
       labels: [],
       datasets: [{
-        label: label,
+        label,
         data: [],
         borderColor: color,
+        backgroundColor: 'transparent',
         borderWidth: 1.5,
         pointRadius: 0,
         tension: 0.4,
@@ -31,109 +41,99 @@ function _makeChart(canvasId, label, color, yLabel='') {
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
       animation: false,
-      plugins: {
-        legend: { display: false }
-      },
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
       scales: {
         x: { display: false },
-        y: { 
-          display: true,
-          title: {
-            display: !!yLabel,
-            text: yLabel
-          }
-        }
+        y: { display: false }
       }
     }
   });
 
-  chartsRegistry.set(canvasId, chart);
+  _charts.set(canvasId, chart);
   return chart;
 }
 
-function nowLabel() {
+function _nowLabel() {
   const d = new Date();
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+  return [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2, '0')).join(':');
+}
+
+function _push(canvasId, value) {
+  const chart = _charts.get(canvasId);
+  if (!chart || value == null) return;
+  const label = _nowLabel();
+  chart.data.labels.push(label);
+  chart.data.datasets[0].data.push(typeof value === 'number' ? parseFloat(value.toFixed(4)) : null);
+  if (chart.data.labels.length > MAX_POINTS) {
+    chart.data.labels.shift();
+    chart.data.datasets[0].data.shift();
+  }
+  chart.update('none');
+}
+
+/** Called on every state update — pushes new data point to all charts. */
+function _onStateUpdate(state) {
+  const tx    = state.transformer || {};
+  const solar = state.solar       || {};
+  const ev    = state.ev          || {};
+
+  // Dashboard sparklines (canvas IDs matching index.html exactly)
+  _push('chartVoltage', tx.voltage);
+  _push('chartCurrent', tx.current);
+  _push('chartPower',   tx.power);
+  _push('chartTemp',    tx.temperature);
+  _push('chartLoading', tx.loading);
+
+  // Analytics page charts
+  _push('chartAnalyticsVoltage',   tx.voltage);
+  _push('chartAnalyticsCurrent',   tx.current);
+  _push('chartAnalyticsPower',     tx.power);
+  _push('chartAnalyticsTemp',      tx.temperature);
+  _push('chartAnalyticsVibration', tx.vibration);
+  _push('chartAnalyticsEV',        ev.power);
+  _push('chartAnalyticsSolar',     solar.power);
 }
 
 export function initCharts() {
   if (!window.Chart) {
-    console.warn('[charts] window.Chart not found.');
+    console.warn('[charts] window.Chart not available — is Chart.js CDN loaded?');
     return;
   }
 
-  // Dashboard sparkline charts (small, bottom of screen)
-  _makeChart('chart-voltage', 'Voltage (V)', '#4488ff');
-  _makeChart('chart-current', 'Current (A)', '#44ffaa');
-  _makeChart('chart-power', 'Power (kW)', '#ffaa44');
-  _makeChart('chart-temp', 'Temperature (Â°C)', '#ff4444');
-  _makeChart('chart-vibration', 'Vibration (mm/s)', '#aa44ff');
-  _makeChart('chart-loading', 'Loading (%)', '#ffdd00');
-  _makeChart('chart-solar', 'Solar (W)', '#ffee00');
-  _makeChart('chart-ev', 'EV (kW)', '#aa44ff');
+  // ── Dashboard sparklines ─────────────────────────────────────
+  _makeChart('chartVoltage', 'Voltage (V)',      '#4488ff');
+  _makeChart('chartCurrent', 'Current (A)',      '#44ffaa');
+  _makeChart('chartPower',   'Power (kW)',       '#ffaa44');
+  _makeChart('chartTemp',    'Temperature (°C)', '#ff4444');
+  _makeChart('chartLoading', 'Loading (%)',      '#ffdd00');
 
-  // Analytics page charts (larger)
-  _makeChart('chartVoltage', 'Voltage (V)', '#4488ff');
-  _makeChart('chartCurrent', 'Current (A)', '#44ffaa');
-  _makeChart('chartPower', 'Power (kW)', '#ffaa44');
-  _makeChart('chartTemp', 'Temperature (Â°C)', '#ff4444');
-  _makeChart('chartVibration', 'Vibration (mm/s)', '#aa44ff');
-  _makeChart('chartLoading', 'Loading (%)', '#ffdd00');
-  _makeChart('chartSolar', 'Solar (W)', '#ffee00');
+  // ── Analytics page charts ────────────────────────────────────
+  _makeChart('chartAnalyticsVoltage',   'Voltage (V)',      '#4488ff');
+  _makeChart('chartAnalyticsCurrent',   'Current (A)',      '#44ffaa');
+  _makeChart('chartAnalyticsPower',     'Power (kW)',       '#ffaa44');
+  _makeChart('chartAnalyticsTemp',      'Temperature (°C)', '#ff6644');
+  _makeChart('chartAnalyticsVibration', 'Vibration (mm/s)', '#aa44ff');
+  _makeChart('chartAnalyticsEV',        'EV Load (kW)',     '#aa55ff');
+  _makeChart('chartAnalyticsSolar',     'Solar (W)',        '#ffdd00');
 
-  subscribe('*', updateCharts);
+  // Subscribe to transformer state only — charts only read state, never write it
+  // (subscribing to '*' is safe here since we don't call any state setters)
+  subscribe('transformer', _onStateUpdate);
+  subscribe('solar',       _onStateUpdate);
+  subscribe('ev',          _onStateUpdate);
+
+  console.info('[charts] Charts initialized. Waiting for first data point...');
 }
 
 export function updateCharts(state) {
-  if (!window.Chart) return;
-
-  const transformer = state.transformer || {};
-  const solar = state.solar || {};
-  const ev = state.ev || {};
-
-  const timeLabel = nowLabel();
-
-  const updates = [
-    // Dashboard
-    { id: 'chart-voltage', val: transformer.voltage },
-    { id: 'chart-current', val: transformer.current },
-    { id: 'chart-power', val: transformer.power },
-    { id: 'chart-temp', val: transformer.temperature },
-    { id: 'chart-vibration', val: transformer.vibration },
-    { id: 'chart-loading', val: transformer.loading },
-    { id: 'chart-solar', val: solar.power },
-    { id: 'chart-ev', val: ev.power },
-    
-    // Analytics
-    { id: 'chartVoltage', val: transformer.voltage },
-    { id: 'chartCurrent', val: transformer.current },
-    { id: 'chartPower', val: transformer.power },
-    { id: 'chartTemp', val: transformer.temperature },
-    { id: 'chartVibration', val: transformer.vibration },
-    { id: 'chartLoading', val: transformer.loading },
-    { id: 'chartSolar', val: solar.power }
-  ];
-
-  updates.forEach(u => {
-    const chart = chartsRegistry.get(u.id);
-    if (!chart) return;
-    
-    chart.data.labels.push(timeLabel);
-    chart.data.datasets[0].data.push(u.val != null ? u.val : null);
-    
-    if (chart.data.labels.length > MAX_POINTS) {
-      chart.data.labels.shift();
-      chart.data.datasets[0].data.shift();
-    }
-    
-    chart.update('none');
-  });
+  _onStateUpdate(state);
 }
 
 export function destroyCharts() {
-  for (const [id, chart] of chartsRegistry) {
-    chart.destroy();
+  for (const [, chart] of _charts) {
+    try { chart.destroy(); } catch(_) {}
   }
-  chartsRegistry.clear();
+  _charts.clear();
 }

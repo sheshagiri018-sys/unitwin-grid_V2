@@ -207,12 +207,13 @@ function _evaluateRules(currentState) {
 
 /**
  * Initialise the rule engine.
- * Subscribes to all state changes and evaluates rules on every update.
+ * FIX: Subscribes to 'transformer' ONLY — NOT '*' — to prevent infinite loop.
+ * setIntelligence() emits ['intelligence'] which would re-fire '*' listeners endlessly.
  */
 export function initRuleEngine() {
-  subscribe('*', (state) => {
+  subscribe('transformer', (state) => {
     _evaluateRules(state);
   });
 
-  console.info('[RuleEngine] Rule engine initialised (30 s alert cooldown).');
+  console.info('[RuleEngine] Rule engine initialised (subscribing to transformer only, 30s cooldown).');
 }
