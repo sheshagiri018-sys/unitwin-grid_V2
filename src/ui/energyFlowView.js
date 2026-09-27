@@ -1,53 +1,17 @@
-﻿/**
- * energyFlowView.js â€” UNITWIN GRID V2
+/**
+ * energyFlowView.js — UNITWIN GRID V2
  * Drives the Energy Flow page: flow values and cause-effect chain rendering.
  */
 
 import { subscribe } from '../core/state.js';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function el(id) { return document.getElementById(id); }
 
 function setText(id, text) {
   const node = el(id);
-  if (node) node.textContent = text ?? 'â€”';
+  if (node) node.textContent = text ?? '—';
 }
 
-// ---------------------------------------------------------------------------
-// Cause-effect chain renderer
-// ---------------------------------------------------------------------------
-
-/**
- * Render the intelligence cause-effect chain into #causeEffectChain.
- * @param {string[]} chain  Array of cause/effect description strings
- */
-function renderCauseEffectChain(chain) {
-  const container = el('causeEffectChain');
-  if (!container) return;
-
-  if (!Array.isArray(chain) || chain.length === 0) {
-    container.innerHTML = '<span class="chain-empty">No active cause-effect relationships detected.</span>';
-    return;
-  }
-
-  const fragments = chain.map((item, idx) => {
-    const isLast  = idx === chain.length - 1;
-    const itemDiv = `<div class="chain-item">${escapeHTML(item)}</div>`;
-    const arrow   = isLast ? '' : '<div class="chain-arrow">â–¼</div>';
-    return itemDiv + arrow;
-  });
-
-  container.innerHTML = fragments.join('');
-}
-
-/**
- * Basic HTML escaping to prevent XSS from state strings.
- * @param {string} str
- * @returns {string}
- */
 function escapeHTML(str) {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -57,75 +21,78 @@ function escapeHTML(str) {
     .replace(/'/g, '&#39;');
 }
 
-// ---------------------------------------------------------------------------
-// Flow status badge helper
-// ---------------------------------------------------------------------------
+function renderCauseEffectChain(chain) {
+  const container = el('causeEffectChain');
+  if (!container) return;
 
-/**
- * Update a flow status badge element.
- * @param {string} id
- * @param {string} status  e.g. 'Active', 'Idle', 'Fault'
- */
+  if (!Array.isArray(chain) || chain.length === 0) {
+    container.innerHTML = '<span style="color:var(--text-dim);font-size:0.75rem;">No active causal imbalances detected.</span>';
+    return;
+  }
+
+  const fragments = chain.map((item, idx) => {
+    const isLast  = idx === chain.length - 1;
+    const causeText = item.cause ?? item;
+    const effectText = item.effect ? ` → ${item.effect}` : '';
+    const itemDiv = `
+      <div style="background:var(--bg-panel);border:1px solid var(--border);border-left:3px solid var(--accent-cyan);border-radius:var(--radius);padding:0.35rem 0.5rem;font-size:0.75rem;">
+        <span style="color:var(--text-primary);font-weight:600;">${escapeHTML(causeText)}</span>
+        <span style="color:var(--text-dim);">${escapeHTML(effectText)}</span>
+      </div>`;
+    const arrow = isLast ? '' : '<div style="text-align:center;color:var(--text-dim);font-size:0.7rem;line-height:1;">▼</div>';
+    return itemDiv + arrow;
+  });
+
+  container.innerHTML = fragments.join('');
+}
+
 function setFlowStatus(id, status) {
   const node = el(id);
   if (!node) return;
-  node.textContent = status ?? 'â€”';
-  const cls = (status ?? '').toLowerCase();
-  node.className = `flow-status flow-status--${cls.replace(/\s+/g, '-')}`;
+  node.textContent = status ?? '—';
+  const s = (status ?? '').toUpperCase();
+  node.className = 'status-pill ' + (
+    s === 'ACTIVE' || s === 'CHARGING' || s === 'NORMAL' ? 'pill-active' :
+    s === 'IDLE' || s === 'OFF' ? 'pill-idle' : 'pill-warn'
+  );
 }
 
-// ---------------------------------------------------------------------------
-// Main state â†’ DOM application
-// ---------------------------------------------------------------------------
-
 function applyState(state) {
-  const sol   = state.solar        || {};
-  const lo    = state.loads        || {};
-  const ev    = lo.ev              || {};
-  const hh    = lo.household       || {};
-  const intel = state.intelligence || {};
-  const flow  = state.energyFlow   || {};
+  const tx    = state.transformer || {};
+  const sol   = state.solar       || {};
+  const ev    = state.ev          || {};
+  const hh    = state.household   || {};
+  const intel = state.intelligence|| {};
 
-  // â”€â”€ Flow values â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  setText('flowSolarW', sol.power  != null ? sol.power.toFixed(0)  + ' W' : 'â€”');
-  setText('flowTxLoad', state.loading?.percentage != null
-    ? state.loading.percentage.toFixed(1) + '%' : 'â€”');
-  setText('flowHHW',    hh.power   != null ? hh.power.toFixed(0)   + ' W' : 'â€”');
-  setText('flowEVW',    ev.power   != null ? ev.power.toFixed(0)   + ' W' : 'â€”');
+  // Flow values on main path diagram
+  const solKW = (sol.power || 0) / 1000;
+  setText('flowSolarW', sol.power != null ? `${sol.power.toFixed(0)} W` : '—');
+  setText('flowTxLoad', tx.loading != null ? `Loading: ${tx.loading.toFixed(1)}%` : '—');
+  setText('flowHHW', hh.power != null ? `${(hh.power * 1000).toFixed(0)} W` : '—');
+  setText('flowEVW', ev.power != null ? `${(ev.power * 1000).toFixed(0)} W` : '—');
 
-  // flowPower1â€“4 and flowStatus1â€“4
-  // These represent up to 4 flow segments in the SVG diagram.
-  // Values are drawn from state.energyFlow if present, otherwise sensors.
-  const flowPowers = flow.powers || [
-    sol.power,
-    (state.sensors || {}).power,
-    hh.power,
-    ev.power,
-  ];
-  const flowStatuses = flow.statuses || [
-    sol.status   || 'Idle',
-    state.transformerState || 'Normal',
-    hh.status    || 'Idle',
-    ev.status    || 'Idle',
-  ];
+  // 4 Cards: Solar -> Grid, Grid -> Transformer, Transformer -> House, Transformer -> EV
+  // Solar -> Grid
+  setText('flowPower1', sol.power != null ? `${sol.power.toFixed(1)} W` : '—');
+  setFlowStatus('flowStatus1', sol.status || 'OFFLINE');
 
-  for (let i = 1; i <= 4; i++) {
-    const pVal = flowPowers[i - 1];
-    setText(`flowPower${i}`, pVal != null ? Number(pVal).toFixed(0) + ' W' : 'â€”');
-    setFlowStatus(`flowStatus${i}`, flowStatuses[i - 1]);
-  }
+  // Grid -> Transformer
+  const txPowerW = tx.power != null ? (tx.power >= 10 ? (tx.power * 1000).toFixed(0) : (tx.power).toFixed(1)) : '—';
+  setText('flowPower2', txPowerW !== '—' ? `${txPowerW} W` : '—');
+  setFlowStatus('flowStatus2', tx.state || 'NORMAL');
 
-  // â”€â”€ Cause-effect chain â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Transformer -> House
+  setText('flowPower3', hh.power != null ? `${(hh.power * 1000).toFixed(0)} W` : '—');
+  setFlowStatus('flowStatus3', hh.status || 'ON');
+
+  // Transformer -> EV
+  setText('flowPower4', ev.power != null ? `${(ev.power * 1000).toFixed(0)} W` : '—');
+  setFlowStatus('flowStatus4', ev.status || 'IDLE');
+
+  // Cause-effect chain
   renderCauseEffectChain(intel.causeEffect);
 }
 
-// ---------------------------------------------------------------------------
-// Init
-// ---------------------------------------------------------------------------
-
-/**
- * Initialise the Energy Flow view.
- */
 export function initEnergyFlowView() {
   subscribe('*', (state) => applyState(state));
 }

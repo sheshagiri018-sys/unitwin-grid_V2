@@ -12,6 +12,7 @@ import { subscribe }                    from '../core/state.js';
 import { registerInteractiveObject }    from './inspector.js';
 
 // ── Module-level state ────────────────────────────────────────
+let _solarVoltage  = 5.80;
 let _solarPower    = 1.04;
 let _solarStatus   = 'ACTIVE';
 let _shimmerMeshes = [];
@@ -176,36 +177,38 @@ export function buildSolarArray() {
   // ── Register interactive ──────────────────────────────────
   registerInteractiveObject(group, 'Solar Panel Array (INA219)', () => ({
     'Sensor':      'INA219',
-    'Panels':      '6',
-    'Config':      '2 × 3',
-    'Peak Power':  '120 W',
-    'Voltage':     `${(5.8).toFixed(2)} V`,
-    'Power':       `${_solarPower.toFixed(2)} W`,
-    'Status':      _solarStatus
+    'Panels':      '6 (2 × 3 PV)',
+    'Voltage':     `${_solarVoltage.toFixed(2)} V`,
+    'Power':       _solarPower >= 1000 ? `${(_solarPower/1000).toFixed(2)} kW` : `${_solarPower.toFixed(2)} W`,
+    'Status':      _solarStatus,
+    'Bus':         'I2C Bus 1 (GPIO 26/27)'
   }));
 
   scene.add(group);
 
   // ── State subscription ────────────────────────────────────
   subscribe('solar', (state) => {
-    _solarPower  = state.solar.power;
-    _solarStatus = state.solar.status;
+    _solarVoltage = state.solar.voltage ?? 5.8;
+    _solarPower   = state.solar.power ?? 0;
+    _solarStatus  = state.solar.status ?? 'ACTIVE';
   });
 
   // ── Animation: shimmer based on solar power ────────────────
   addAnimationCallback((delta) => {
     _t += delta;
-    if (_solarStatus !== 'ACTIVE') {
+    if (_solarStatus !== 'ACTIVE' || _solarPower <= 0) {
       _shimmerMeshes.forEach((m) => { m.material.emissiveIntensity = 0; });
       return;
     }
-    const normalised = Math.max(0, Math.min(1, _solarPower / 5.0));
+    // Scale smoothly whether power is 1.2W (prototype) or 3500W (simulated)
+    const maxScale = _solarPower > 20 ? 6000.0 : 5.0;
+    const normalised = Math.max(0.1, Math.min(1.0, _solarPower / maxScale));
     _shimmerMeshes.forEach((m, idx) => {
       const phase     = _t * 1.6 + idx * 0.35;
-      const shimmer   = normalised * (0.04 + 0.06 * Math.abs(Math.sin(phase)));
+      const shimmer   = normalised * (0.05 + 0.08 * Math.abs(Math.sin(phase)));
       m.material.emissive          = m.material.emissive || new THREE.Color();
-      m.material.emissive.setRGB(shimmer * 0.08, shimmer * 0.22, shimmer * 0.85);
-      m.material.emissiveIntensity = shimmer * 1.8;
+      m.material.emissive.setRGB(shimmer * 0.1, shimmer * 0.25, shimmer * 0.9);
+      m.material.emissiveIntensity = shimmer * 2.0;
     });
   });
 

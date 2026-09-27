@@ -1,11 +1,11 @@
-﻿/**
- * scenarioView.js â€” UNITWIN GRID V2
+/**
+ * scenarioView.js — UNITWIN GRID V2
  * Drives the Scenarios & Demo page: scenario buttons, EV/solar/household controls, demo sequence.
  */
 
-import { activateScenario }                                          from '../simulator/scenarioManager.js';
+import { activateScenario } from '../simulator/scenarioManager.js';
 import { setSimulationEVLevel, setSimulationSolar, setSimulationHousehold } from '../data/simulationEngine.js';
-import { subscribe, addAlert, resetState }                          from '../core/state.js';
+import { subscribe, addAlert, resetState } from '../core/state.js';
 import {
   startDemo,
   stopDemo,
@@ -16,20 +16,12 @@ import {
   isPaused,
 } from './demoController.js';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function el(id) { return document.getElementById(id); }
 
 function setText(id, text) {
   const node = el(id);
-  if (node) node.textContent = text ?? 'â€”';
+  if (node) node.textContent = text ?? '—';
 }
-
-// ---------------------------------------------------------------------------
-// Scenario buttons â€” [data-scenario]
-// ---------------------------------------------------------------------------
 
 function initScenarioButtons() {
   document.addEventListener('click', (e) => {
@@ -40,8 +32,7 @@ function initScenarioButtons() {
     activateScenario(scenario);
     addAlert('INFO', `Scenario activated: ${scenario}`);
 
-    // Highlight active button within the group
-    const group = btn.closest('[data-scenario-group]') ?? document.querySelector('.scenario-grid');
+    const group = btn.closest('[data-scenario-group]') ?? document.querySelector('.scenario-grid') ?? btn.parentElement;
     if (group) {
       group.querySelectorAll('[data-scenario]').forEach((b) =>
         b.classList.toggle('active', b === btn)
@@ -50,22 +41,17 @@ function initScenarioButtons() {
   });
 }
 
-// ---------------------------------------------------------------------------
-// EV level buttons â€” [data-ev-level]
-// ---------------------------------------------------------------------------
-
 function initEVLevelButtons() {
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-ev-level]');
     if (!btn) return;
 
-    const level = parseInt(btn.dataset.evLevel, 10);
-    if (!isNaN(level)) {
+    const level = btn.dataset.evLevel;
+    if (level) {
       setSimulationEVLevel(level);
-      addAlert('INFO', `EV charge level set to ${level} kW.`);
+      addAlert('INFO', `EV charge level set to ${level.toUpperCase()}.`);
     }
 
-    // Highlight
     const group = btn.closest('[data-ev-group]') ?? btn.parentElement;
     if (group) {
       group.querySelectorAll('[data-ev-level]').forEach((b) =>
@@ -74,10 +60,6 @@ function initEVLevelButtons() {
     }
   });
 }
-
-// ---------------------------------------------------------------------------
-// Solar toggle â€” #solarToggle
-// ---------------------------------------------------------------------------
 
 function initSolarToggle() {
   const toggle = el('solarToggle');
@@ -88,10 +70,6 @@ function initSolarToggle() {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Household toggle â€” #householdToggle
-// ---------------------------------------------------------------------------
-
 function initHouseholdToggle() {
   const toggle = el('householdToggle');
   if (!toggle) return;
@@ -101,18 +79,16 @@ function initHouseholdToggle() {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Demo controls
-// ---------------------------------------------------------------------------
-
-/**
- * Update the demo button states (play/pause labels etc.) to reflect current status.
- */
 function updateDemoButtonStates() {
   const pauseBtn = el('demoPauseBtn');
   if (pauseBtn) {
     pauseBtn.textContent = isPaused() ? 'Resume' : 'Pause';
   }
+  const pauseBtn2 = el('demoPauseBtn2');
+  if (pauseBtn2) {
+    pauseBtn2.textContent = isPaused() ? '▶ RESUME' : '⏸ PAUSE';
+  }
+
   const startBtn  = el('demoStartBtn');
   const startBtn2 = el('demoStartBtn2');
   const running   = isRunning();
@@ -121,13 +97,11 @@ function updateDemoButtonStates() {
 }
 
 function initDemoControls() {
-  // Start buttons (may exist in multiple locations)
   ['demoStartBtn', 'demoStartBtn2'].forEach((btnId) => {
     const btn = el(btnId);
     if (!btn) return;
     btn.addEventListener('click', () => {
       startDemo(() => {
-        // Demo complete callback
         addAlert('INFO', 'Demo sequence completed.');
         updateDemoButtonStates();
       });
@@ -135,7 +109,6 @@ function initDemoControls() {
     });
   });
 
-  // Stop button
   const stopBtn = el('demoStopBtn');
   if (stopBtn) {
     stopBtn.addEventListener('click', () => {
@@ -144,9 +117,9 @@ function initDemoControls() {
     });
   }
 
-  // Pause / resume toggle
-  const pauseBtn = el('demoPauseBtn');
-  if (pauseBtn) {
+  ['demoPauseBtn', 'demoPauseBtn2'].forEach((btnId) => {
+    const pauseBtn = el(btnId);
+    if (!pauseBtn) return;
     pauseBtn.addEventListener('click', () => {
       if (isPaused()) {
         resumeDemo();
@@ -155,21 +128,17 @@ function initDemoControls() {
       }
       updateDemoButtonStates();
     });
-  }
+  });
 
-  // Skip step
-  const skipBtn = el('demoSkipBtn');
-  if (skipBtn) {
+  ['demoSkipBtn', 'demoSkipBtn2'].forEach((btnId) => {
+    const skipBtn = el(btnId);
+    if (!skipBtn) return;
     skipBtn.addEventListener('click', () => {
       skipDemo();
       updateDemoButtonStates();
     });
-  }
+  });
 }
-
-// ---------------------------------------------------------------------------
-// System reset button
-// ---------------------------------------------------------------------------
 
 function initResetSystemBtn() {
   const btn = el('resetSystemBtn');
@@ -181,29 +150,25 @@ function initResetSystemBtn() {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Live state display
-// ---------------------------------------------------------------------------
-
 function applyState(state) {
-  const load  = state.loading       || {};
-  const s     = state.sensors       || {};
-  const hlth  = state.health        || {};
+  const tx   = state.transformer || {};
+  const hlth = state.health      || {};
 
-  setText('scenLoadingPct', load.percentage != null ? load.percentage.toFixed(1) + '%' : 'â€”');
-  setText('scenTemp',       s.temperature   != null ? s.temperature.toFixed(1) + ' Â°C' : 'â€”');
-  setText('scenVib',        s.vibration     != null ? s.vibration.toFixed(3) + ' g'    : 'â€”');
-  setText('scenHealth',     hlth.score      != null ? hlth.score.toFixed(0)             : 'â€”');
-  setText('scenState',      state.transformerState ?? 'â€”');
+  setText('scenLoadingPct', tx.loading     != null ? tx.loading.toFixed(1) + '%'     : '—');
+  setText('scenTemp',       tx.temperature != null ? tx.temperature.toFixed(1) + ' °C' : '—');
+  setText('scenVib',        tx.vibration   != null ? tx.vibration.toFixed(3) + ' g'   : '—');
+  setText('scenHealth',     hlth.score      != null ? hlth.score.toFixed(0) + '%'     : '—');
+
+  const scenStateEl = el('scenState');
+  if (scenStateEl && tx.state) {
+    scenStateEl.textContent = tx.state;
+    scenStateEl.className = 'state-badge ' + (
+      tx.state === 'CRITICAL' ? 'state-critical' :
+      tx.state === 'WARNING'  ? 'state-warning'  : 'state-normal'
+    );
+  }
 }
 
-// ---------------------------------------------------------------------------
-// Init
-// ---------------------------------------------------------------------------
-
-/**
- * Initialise the Scenarios & Demo view.
- */
 export function initScenarioView() {
   initScenarioButtons();
   initEVLevelButtons();

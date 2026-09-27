@@ -170,6 +170,28 @@ export const MAT = {
     roughness: 0.35
   }),
 
+  // ── Environment ───────────────────────────────────────────
+  /** Utility wooden power pole */
+  pole: std({
+    color:     0x4a3728,
+    metalness: 0.05,
+    roughness: 0.85
+  }),
+
+  /** Concrete equipment pad / sidewalk */
+  concrete: std({
+    color:     0x303a45,
+    metalness: 0.1,
+    roughness: 0.9
+  }),
+
+  /** Asphalt road surface */
+  road: std({
+    color:     0x141820,
+    metalness: 0.05,
+    roughness: 0.95
+  }),
+
   // ── Thermal overlay ───────────────────────────────────────
   /**
    * Semi-transparent additive heat overlay for thermal mode.
